@@ -1,0 +1,48 @@
+#version 300 es
+
+precision highp float;
+out highp vec4 fColor;
+
+uniform float MaxN;
+uniform float Size;
+uniform vec2 MinPos;
+uniform vec2 MaxPos;
+uniform vec2 Aux;
+
+vec2 ComplMul(vec2 N1, vec2 N2)
+{
+  return vec2(N1.x * N2.x - N1.y * N2.y, N1.x * N2.y + N1.y * N2.x);
+}
+
+vec2 ComplDiv(vec2 N1, vec2 N2)
+{
+  return vec2(dot(N1, N2), N1.y * N2.x - N1.x * N2.y) / dot(N2, N2);
+}
+
+vec3 Newton(vec2 Z)
+{
+  float n = 0.0;
+
+  float i = 0.0;
+
+  while (i < MaxN && dot(Z, Z) < 4.0)
+  {
+    vec2 Z2 = ComplMul(Z, Z);
+    vec2 Z4 = ComplMul(Z2, Z2);
+    vec2 Z8 = ComplMul(Z4, Z4);
+    vec2 Z12 = ComplMul(Z8, Z4);
+
+    Z = Z - ComplDiv(ComplMul(Z12, Z) - vec2(1, 0), Z12 * 12.0);
+
+    i += 1.0;
+  }
+
+  return vec3(pow(i / (MaxN + 1.0), 0.30), Z);
+}
+
+void main(void)
+{
+  float tx = gl_FragCoord.x / 900.0, ty = gl_FragCoord.y / 900.0;
+  vec2 Pos = vec2(MinPos.x * (1.0 - tx) + MaxPos.x * tx, MinPos.y * (1.0 - ty) + MaxPos.y * ty);
+  fColor = vec4(Newton(Pos), 1.0);
+}
