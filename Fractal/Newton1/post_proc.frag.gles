@@ -1,0 +1,47 @@
+#version 300 es
+
+precision highp float;
+
+uniform sampler2D FBO0;
+
+in highp vec2 TexCoord;
+
+out highp vec4 fColor;
+
+vec3 HSVtoRGB(float Hue, float Sat, float Val)
+{
+  Hue = fract(Hue);
+  Sat = clamp(Sat, 0.0, 1.0);
+  Val = clamp(Val, 0.0, 1.0);
+
+  float HueMul = Hue * 6.f;
+
+  /* Evaluate some auxilary variables */
+  float Tmp0 = (1.f - Sat) * Val;
+  float Tmp1 = mod(HueMul, 1.f) * (Val - Tmp0);
+
+  /* Different actions for different values of Hue */
+  switch (int(HueMul))
+  {
+  case 0:
+    return vec3(Val, Tmp0 + Tmp1, Tmp0);
+  case 1:
+    return vec3(Val - Tmp1, Val, Tmp0);
+  case 2:
+    return vec3(Tmp0, Val, Tmp0 + Tmp1);
+  case 3:
+    return vec3(Tmp0, Val - Tmp1, Val);
+  case 4:
+    return vec3(Tmp0 + Tmp1, Tmp0, Val);
+  case 5:
+    return vec3(Val, Tmp0, Val - Tmp1);
+  default:
+    return vec3(0, 0, 0);
+  }
+}
+
+void main(void)
+{
+  vec3 Color = texelFetch(FBO0, ivec2(gl_FragCoord.xy), 0).rgb;
+  fColor = vec4(HSVtoRGB(Color.x, Color.y + 0.5, Color.z + 0.5), 1.0);
+}
