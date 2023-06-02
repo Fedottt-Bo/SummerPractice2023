@@ -23,6 +23,7 @@ let ProjectPages =
   ["/Fractal/Newton.html", "?path=/Fractal/Newton2/", "/Fractal/Newton2/", "Newton Classic (5rd power)"],
   ["/Fractal/Newton.html", "?path=/Fractal/Newton3/", "/Fractal/Newton3/", "Newton Classic (13rd power)"],
   ["/Fractal/Newton.html", "?path=/Fractal/Newton4/", "/Fractal/Newton4/", "Newton Sin"],
+  ["/WebGPU/index.html", "?", "/WebGPU/resources/", "Web GPU"],
 ]
 let ProjectPagesJSON = JSON.stringify(ProjectPages.map(val => { ProjectIndices.add(val[0]); return [val[0] + val[1], val[3]]; }))
 
