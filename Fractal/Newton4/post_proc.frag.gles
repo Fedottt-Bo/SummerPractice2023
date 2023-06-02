@@ -10,7 +10,7 @@ out highp vec4 fColor;
 
 vec3 HSVtoRGB(float Hue, float Sat, float Val)
 {
-  Hue = fract(Hue);
+  Hue = abs(fract(Hue));
   Sat = clamp(Sat, 0.0, 1.0);
   Val = clamp(Val, 0.0, 1.0);
 
@@ -43,6 +43,5 @@ vec3 HSVtoRGB(float Hue, float Sat, float Val)
 void main(void)
 {
   vec3 Color = texelFetch(FBO0, ivec2(gl_FragCoord.xy), 0).rgb;
-  fColor = vec4(HSVtoRGB(Color.x, Color.y + 0.5, Color.z + 0.5), 1.0);
-  //fColor = vec4(Color, 1.0);
+  fColor = vec4(HSVtoRGB(1.0 - Color.x, Color.y + 0.5, Color.z + 0.5), 1.0);
 }

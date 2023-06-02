@@ -22,10 +22,10 @@ vec2 ComplDiv(vec2 N1, vec2 N2)
 
 vec3 Newton(vec2 Z)
 {
-  float i = 0.0;
+  float i = 0.0, max_abs = dot(Z, Z) * 4.0;
   vec2 A = Aux;
 
-  while (i < MaxN && dot(Z, Z) < 4.0)
+  while (i < MaxN && dot(Z, Z) < max_abs)
   {
     vec2 Z2 = ComplMul(Z, Z);
     vec2 Z4 = ComplMul(Z2, Z2);
@@ -44,6 +44,6 @@ void main(void)
 {
   vec2 Pos = gl_FragCoord.xy / Resolution;
   Pos = mix(MinPos, MaxPos, Pos);
-  
+
   fColor = vec4(Newton(Pos), 1.0);
 }

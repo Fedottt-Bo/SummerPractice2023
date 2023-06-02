@@ -37,19 +37,22 @@ vec2 ComplCos(vec2 N)
 
 vec3 Newton(vec2 Z)
 {
-  float n = 0.0;
+  float i = 0.0, max_abs = dot(Z, Z) * 4.0;
 
-  float i = 0.0;
-
-  while (i < MaxN && dot(Z, Z) < 4.0)
+  while (i < MaxN/* && dot(Z, Z) < max_abs*/)
   {
-    //Z -= ComplDiv(ComplMul(Z, ComplSin(Z)), ComplSin(Z) + ComplMul(Z, ComplCos(Z)));
-    Z -= ComplDiv(ComplSin(Z), ComplCos(Z));
+    vec2 Diff;
+    Diff = ComplDiv(ComplMul(Z, ComplSin(Z)), ComplSin(Z) + ComplMul(Z, ComplCos(Z)));
+    //Diff = ComplDiv(ComplSin(Z), ComplCos(Z));
+    Z -= Diff;
+
+    if (dot(Diff, Diff) < 0.00390625)
+      break;
 
     i += 1.0;
   }
 
-  return vec3(pow(i / (MaxN + 1.0), 0.30), Z);
+  return vec3(pow(i / (MaxN + 3.0), 0.30), Z);
 }
 
 void main(void)
