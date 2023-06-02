@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+
+<html>
+
+<head>
+  <title>Web GPU try</title>
+
+  <script type="text/javascript">
+    const format = 'bgra8unorm';
+
+    async function InitWebGPU() {
+      if (!navigator.gpu) {
+        let msg = 'Your current browser does not support WebGPU!';
+
+        console.log(msg);
+        throw msg;
+      }
+
+      const canvas = document.getElementById('canvas-webgpu');
+      const adapter = await navigator.gpu.requestAdapter();
+      const device = await adapter.requestDevice();
+      const context = canvas.getContext('webgpu');
+
+      context.configure({
+        device: device,
+        format: format,
+        alphaMode: 'opaque'
+      });
+
+      return { gpu : navigator.gpu, adapter : adapter, device : device, context : context };
+    }
+
+    async function MainInit() {
+      let gpu = await InitWebGPU();
+      let device = gpu.device;
+
+      const vertexData = new Float32Array([
+        //position    //color
+       -0.5, -0.5,    1, 0, 0,
+        0.5, -0.5,    0, 1, 0,
+       -0.5,  0.5,    1, 1, 0,
+        0.5,  0.5,    0, 0, 1
+      ]);
+
+      const vert_buffer = device.createBuffer({
+        size: vertexData.length * 4,
+        usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
+        mappedAtCreation: true
+      });
+      new Float32Array(vert_buffer.getMappedRange()).set(vertexData);
+      vert_buffer.unmap();
+
+      const indexData = new Uint32Array([0, 1, 2, 2, 1, 3]);
+
+      const ind_buffer = device.createBuffer({
+        size: indexData.length * 4,
+        usage: GPUBufferUsage.INDEX | GPUBufferUsage.COPY_DST,
+        mappedAtCreation: true
+      });
+      new Uint32Array(ind_buffer.getMappedRange()).set(indexData);
+      ind_buffer.unmap();
+
+      const pipeline = device.createRenderPipeline({
+        layout:'auto',
+        vertex: {
+          module: device.createShaderModule({ code:
+            `struct Output {
+              @builtin(position) Position : vec4<f32>,
+              @location(0) vColor : vec4<f32>,
+            };
+            @vertex
+            fn main(@location(0) pos: vec4<f32>, @location(1) color: vec4<f32>) -> Output {
+                var output: Output;
+                output.Position = pos;
+                output.vColor = color;
+                return output;
+            }` }),
+          buffers:
+          [
+            {
+              arrayStride: 4*(2+3),
+              attributes:
+              [
+                {
+                  shaderLocation: 0,
+                  format: 'float32x2',
+                  offset: 0
+                },
+                {
+                  shaderLocation: 1,
+                  format: 'float32x3',
+                  offset: 8
+                }
+              ]
+            }
+          ],
+          entryPoint: "main"
+        },
+        fragment: {
+            module: device.createShaderModule({ code:
+              `@fragment
+              fn main(@location(0) vColor: vec4<f32>) -> @location(0) vec4<f32> {
+                return vColor;
+              }` }),
+            entryPoint: "main",
+            targets: [{ format: format }]
+        },
+        primitive: {
+          topology: "triangle-list",
+        }
+      });
+
+      const commandEncoder = device.createCommandEncoder();
+      const textureView = gpu.context.getCurrentTexture().createView();
+      const renderPass = commandEncoder.beginRenderPass({
+          colorAttachments: [{
+              view: textureView,
+              clearValue: { r: 0.5, g: 0.5, b: 0.8, a: 1.0 },
+              loadOp: 'clear',
+              storeOp: 'store'
+          }]
+      });
+
+      renderPass.setPipeline(pipeline);
+      renderPass.setVertexBuffer(0, vert_buffer);
+      renderPass.setIndexBuffer(ind_buffer, "uint32");
+      renderPass.drawIndexed(6, 1, 0, 0);
+      renderPass.end();
+
+      device.queue.submit([commandEncoder.finish()]);
+    }
+  </script>
+</head>
+
+<body onload="MainInit()">
+  <canvas id="canvas-webgpu" style="border: none;" width="1024" height="1024"></canvas><br>
+</body>
