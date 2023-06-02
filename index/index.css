@@ -1,0 +1,42 @@
+.Main {
+  background-color: rgb(127, 255, 212, 0.666);
+  height: 96vh;
+  margin-left: 75px;
+  width: max-content;
+  padding: 5px;
+  width: 470px;
+  border-radius: 15px;
+}
+
+.Hrefs {
+  margin: 5px 3px;
+  width: inherit;
+  text-decoration: none;
+}
+
+.Handle {
+  margin-top: 20px;
+  color: #10009c;
+  font-size: 47px;
+}
+
+.Main h1 {
+  position: absolute;
+  left: 90px;
+  bottom: 0px;
+}
+
+.Body {
+  background-image: url("Dizign.gif");
+  background-size: 10%;
+}
+
+li {
+  width: inherit;
+  margin: 3px 2px;
+  background-color: rgba(135, 206, 250, 0.30);
+  text-align: center;
+  font-size: 18px;
+  font-family: "Consolas";
+  text-decoration: none;
+}
