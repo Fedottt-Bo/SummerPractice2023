@@ -7,6 +7,7 @@ uniform float MaxN;
 uniform float Size;
 uniform vec2 MinPos;
 uniform vec2 MaxPos;
+uniform vec2 Resolution;
 uniform vec2 Aux;
 
 vec2 ComplMul(vec2 N1, vec2 N2)
@@ -21,9 +22,8 @@ vec2 ComplDiv(vec2 N1, vec2 N2)
 
 vec3 Newton(vec2 Z)
 {
-  float n = 0.0;
-
   float i = 0.0;
+  vec2 A = Aux;
 
   while (i < MaxN && dot(Z, Z) < 4.0)
   {
@@ -32,7 +32,7 @@ vec3 Newton(vec2 Z)
     vec2 Z8 = ComplMul(Z4, Z4);
     vec2 Z12 = ComplMul(Z8, Z4);
 
-    Z = Z - ComplDiv(ComplMul(Z12, Z) - vec2(1, 0), Z12 * 12.0);
+    Z = Z - ComplDiv(ComplMul(Z12, Z) - A, Z12 * 12.0);
 
     i += 1.0;
   }
@@ -42,7 +42,8 @@ vec3 Newton(vec2 Z)
 
 void main(void)
 {
-  float tx = gl_FragCoord.x / 900.0, ty = gl_FragCoord.y / 900.0;
-  vec2 Pos = vec2(MinPos.x * (1.0 - tx) + MaxPos.x * tx, MinPos.y * (1.0 - ty) + MaxPos.y * ty);
+  vec2 Pos = gl_FragCoord.xy / Resolution;
+  Pos = mix(MinPos, MaxPos, Pos);
+  
   fColor = vec4(Newton(Pos), 1.0);
 }
