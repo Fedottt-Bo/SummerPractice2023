@@ -4,8 +4,8 @@ const mat4 = glMatrix.mat4;
 const vec3 = glMatrix.vec3;
 
 // Import other files
-import { surface_format as format, InitWebGPU } from './web_gpu_helper.js';
-import { LoadModel } from './model.js';
+import { InitWebGPU } from './web_gpu_helper.js';
+import { LoadModel } from './model_data.js';
 
 // Number clamp function
 const clamp = (num, min, max) => Math.min(Math.max(num, min), max);
@@ -25,68 +25,6 @@ export async function InitRender() {
   let device = gpu.device;
 
   model = await LoadModel(device);
-
-  model.pipeline = device.createRenderPipeline({
-    layout:'auto',
-    vertex: {
-      module: device.createShaderModule({ code:
-        `struct Uniforms {
-          mvpMatrix : mat4x4<f32>,
-        };
-        @binding(0) @group(0) var<uniform> uniforms : Uniforms;
-
-        struct Output {
-          @builtin(position) Position : vec4<f32>,
-          @location(0) vColor : vec4<f32>,
-        };
-
-        @vertex
-        fn main(@location(0) pos: vec3<f32>, @location(1) color: vec4<f32>) -> Output {
-          var output: Output;
-          output.Position = uniforms.mvpMatrix * vec4<f32>(pos, 1.0);
-          output.vColor = color;
-          return output;
-        }` }),
-      buffers:
-      [
-        {
-          arrayStride: 4 * (3 + 3),
-          attributes:
-          [
-            {
-              shaderLocation: 0,
-              format: 'float32x3',
-              offset: 0
-            },
-            {
-              shaderLocation: 1,
-              format: 'float32x3',
-              offset: 12
-            }
-          ]
-        }
-      ],
-      entryPoint: "main"
-    },
-    fragment: {
-        module: device.createShaderModule({ code:
-          `@fragment
-          fn main(@location(0) vColor: vec4<f32>) -> @location(0) vec4<f32> {
-            return vColor;
-          }` }),
-        entryPoint: "main",
-        targets: [{ format: format }]
-    },
-    primitive: {
-      topology: "triangle-list",
-      cullMode: 'none'
-    },
-    depthStencil:{
-      format: "depth24plus",
-      depthWriteEnabled: true,
-      depthCompare: "less"
-    }
-  });
 
   render_target.depth_tex = device.createTexture({
     size: [gpu.canvas.width, gpu.canvas.height, 1],
@@ -130,10 +68,7 @@ export async function InitRender() {
     ]
   });
 
-  gpu.canvas.addEventListener("mousedown", event => button_pressed = true);
-  gpu.canvas.addEventListener("mouseup", event => button_pressed = false);
-  gpu.canvas.addEventListener("mousemove", (event) =>
-  {
+  gpu.canvas.addEventListener("mousemove", (event) => {
     event.preventDefault();
     let new_pos = { x : event.clientX - gpu.canvas.offsetLeft, y : event.clientY - gpu.canvas.offsetTop };
 
@@ -146,6 +81,8 @@ export async function InitRender() {
     mouse.pos = new_pos;
     mouse.page_pos = { x: new_pos.x / gpu.canvas.width, y: new_pos.y / gpu.canvas.height };
   });
+  gpu.canvas.addEventListener("mousedown", (_event) => { button_pressed = true });
+  gpu.canvas.addEventListener("mouseup", (_event) => { button_pressed = false });
   gpu.canvas.addEventListener("wheel", (event) => camera.dist *= (1.0 + event.deltaY * 0.001));
 
   Tick();
@@ -181,13 +118,7 @@ function Render() {
   render_target.render_pass_desc.colorAttachments[0].view = gpu.context.getCurrentTexture().createView();
   const renderPass = commandEncoder.beginRenderPass(render_target.render_pass_desc);
 
-  renderPass.setPipeline(model.pipeline);
-  renderPass.setBindGroup(0, model.uniform_bind_group);
-
-  renderPass.setVertexBuffer(0, model.vert);
-  renderPass.setIndexBuffer(model.ind, "uint32");
-
-  renderPass.drawIndexed(model.cnt, 1, 0, 0);
+  model.draw(renderPass);
 
   renderPass.end();
   gpu.device.queue.submit([commandEncoder.finish()]);

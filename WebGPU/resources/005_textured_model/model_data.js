@@ -1,3 +1,5 @@
+import { default_pipeline } from './pipeline_data.js';
+
 var cubeData =
 {
   vertices:
@@ -67,5 +69,26 @@ export async function LoadModel(device) {
   new Uint32Array(ind_buffer.getMappedRange()).set(new Uint32Array(cubeData.indices));
   ind_buffer.unmap();
 
-  return { ind : ind_buffer, vert : vert_buffer, cnt : cubeData.indices.length };
+  let pipeline_desc = default_pipeline(device);
+  pipeline_desc.depthStencil = {
+    format: "depth24plus",
+    depthWriteEnabled: true,
+    depthCompare: "less"
+  };
+
+  return {
+    ind : ind_buffer,
+    vert : vert_buffer,
+    cnt : cubeData.indices.length,
+    pipeline : device.createRenderPipeline(pipeline_desc),
+    draw : function (renderPass) {
+      renderPass.setPipeline(this.pipeline);
+      renderPass.setBindGroup(0, this.uniform_bind_group);
+
+      renderPass.setVertexBuffer(0, this.vert);
+      renderPass.setIndexBuffer(this.ind, "uint32");
+
+      renderPass.drawIndexed(this.cnt, 1, 0, 0);
+    }
+  };
 }
