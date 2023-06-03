@@ -222,13 +222,23 @@
 
     function MouseMove(e) {
       PagePos = { x: (e.clientX - canvas.offsetLeft) / canvas.width, y: (e.clientY - canvas.offsetTop) / canvas.height };
-      if (!ButtonPressed)
-        return;
+
       NewPos = getMousePos(canvas, e);
-      MinPos.x += (NewPos.x - PrevPos.x) / size * -0.0045;
-      MaxPos.x += (NewPos.x - PrevPos.x) / size * -0.0045;
-      MinPos.y += (NewPos.y - PrevPos.y) / size * 0.0045;
-      MaxPos.y += (NewPos.y - PrevPos.y) / size * 0.0045;
+
+      if (ButtonPressed)
+      {
+        let W = MaxPos.x - MinPos.x;
+        let H = MaxPos.y - MinPos.y;
+
+        let WMove = -W * (NewPos.x - PrevPos.x) / canvas.width;
+        let HMove = H * (NewPos.y - PrevPos.y) / canvas.height;
+
+        MinPos.x += WMove;
+        MaxPos.x += WMove;
+        MinPos.y += HMove;
+        MaxPos.y += HMove;
+      }
+
       PrevPos = NewPos;
     }
 
@@ -301,7 +311,7 @@
 
 
 <body onload="webGLStart();">
-  <canvas id="wegl-canvas" style="border: none;" width="1024" height="1024"></canvas>
+  <canvas id="wegl-canvas" style="border: none;" width="800" height="800"></canvas>
 
   <br>
 
