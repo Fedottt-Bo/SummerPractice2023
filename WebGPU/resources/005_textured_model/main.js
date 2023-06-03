@@ -3,82 +3,14 @@ const glMatrix = require('gl-matrix');
 const mat4 = glMatrix.mat4;
 const vec3 = glMatrix.vec3;
 
-const format = 'bgra8unorm';
+// Import other files
+import { surface_format as format, InitWebGPU } from './web_gpu_helper.js';
+import { LoadModel } from './model.js';
+
+// Number clamp function
 const clamp = (num, min, max) => Math.min(Math.max(num, min), max);
 
-var cubeData =
-{
-  vertices:
-  [
-    // position     // color
-    // front
-    -1,  1,  1,     0, 0, 1,
-    -1, -1,  1,     0, 0, 1,
-     1,  1,  1,     1, 1, 1,
-     1, -1,  1,     0, 0, 1,
 
-    // right
-     1,  1,  1,     1, 1, 1,
-     1, -1,  1,     0, 1, 0,
-     1,  1, -1,     0, 1, 0,
-     1, -1, -1,     0, 1, 0,
-
-    // back
-     1,  1, -1,     1, 0, 0,
-     1, -1, -1,     1, 0, 0,
-    -1,  1, -1,     1, 0, 0,
-    -1, -1, -1,     0, 0, 0,
-
-    // left
-    -1, -1, -1,     0, 0, 0,
-    -1, -1,  1,     1, 1, 0,
-    -1,  1, -1,     1, 1, 0,
-    -1,  1,  1,     1, 1, 0,
-
-    // top
-    -1,  1, -1,     1, 0, 1,
-    -1,  1,  1,     1, 0, 1,
-     1,  1, -1,     1, 0, 1,
-     1,  1,  1,     1, 1, 1,
-
-    // bottom
-    -1, -1,  1,     0, 1, 1,
-    -1, -1, -1,     0, 0, 0,
-     1, -1,  1,     0, 1, 1,
-     1, -1, -1,     0, 1, 1,
-  ],
-  indices:
-  [
-     0,  1,  2,  2,  1,  3,
-     4,  5,  6,  6,  5,  7,
-     8,  9, 10, 10,  9, 11,
-    12, 13, 14, 14, 13, 15,
-    16, 17, 18, 18, 17, 19,
-    20, 21, 22, 22, 21, 23
-  ]
-};
-
-async function InitWebGPU() {
-  if (!navigator.gpu) {
-    let msg = 'Your current browser does not support WebGPU!';
-
-    console.log(msg);
-    throw msg;
-  }
-
-  const canvas = document.getElementById('canvas-webgpu');
-  const adapter = await navigator.gpu.requestAdapter();
-  const device = await adapter.requestDevice();
-  const context = canvas.getContext('webgpu');
-
-  context.configure({
-    device: device,
-    format: format,
-    alphaMode: 'opaque'
-  });
-
-  return { gpu : navigator.gpu, canvas : canvas, adapter : adapter, device : device, context : context };
-}
 
 // Variables collections for rendering
 var gpu = {}, model = {}, render_target = {};
@@ -92,25 +24,7 @@ export async function InitRender() {
   gpu = await InitWebGPU();
   let device = gpu.device;
 
-  {
-    const vert_buffer = device.createBuffer({
-      size: cubeData.vertices.length * 4,
-      usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
-      mappedAtCreation: true
-    });
-    new Float32Array(vert_buffer.getMappedRange()).set(new Float32Array(cubeData.vertices));
-    vert_buffer.unmap();
-
-    const ind_buffer = device.createBuffer({
-      size: cubeData.indices.length * 4,
-      usage: GPUBufferUsage.INDEX | GPUBufferUsage.COPY_DST,
-      mappedAtCreation: true
-    });
-    new Uint32Array(ind_buffer.getMappedRange()).set(new Uint32Array(cubeData.indices));
-    ind_buffer.unmap();
-
-    model = { ind : ind_buffer, vert : vert_buffer, cnt : cubeData.indices.length };
-  }
+  model = await LoadModel(device);
 
   model.pipeline = device.createRenderPipeline({
     layout:'auto',
