@@ -1,12 +1,24 @@
 // Import all dependencies
-const http = require('http');
 const express = require('express');
 const favicon = require('serve-favicon')
 const cookieParser = require('cookie-parser');
+const fs = require('fs');
+// Try to import https, otherwise import http
+let http, is_https = false;
+try {
+  http = require('https');
+  is_https = true;
+} catch (e) {
+  http = require('http');
+  console.log("HTTPS is not supported, switched on HTTP");
+}
 
 // Create server
 const app = express();
-const server = http.createServer(app);
+const server = http.createServer(is_https ? {
+  key: fs.readFileSync("certificate/key.pem", 'utf8'),
+  cert: fs.readFileSync("certificate/cert.pem", 'utf8'),
+} : {}, app);
 
 // Add server defaults
 app.use(cookieParser());
@@ -37,6 +49,5 @@ app.get('/list.txt*', (req, res) => {
   res.end(ProjectPagesJSON);
 });
 
-server.listen(3000, () => {
-  console.log('listening on *:3000');
-});
+let port = 3000;
+server.listen(port, () => console.log(`listening on *:${port}`));
