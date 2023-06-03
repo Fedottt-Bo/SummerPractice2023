@@ -224,6 +224,7 @@
       gpu.canvas.addEventListener("mouseup", event => button_pressed = false);
       gpu.canvas.addEventListener("mousemove", (event) =>
       {
+        event.preventDefault();
         let new_pos = { x : event.clientX - gpu.canvas.offsetLeft, y : event.clientY - gpu.canvas.offsetTop };
 
         if (button_pressed)

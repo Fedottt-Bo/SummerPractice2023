@@ -312,6 +312,7 @@
     }
 
     function onWheel(e) {
+      e.preventDefault();
       if (e.deltaY < 0) {
         size *= 1.2;
         /*let CurPos = { x: MinPos.x * (1 - PagePos.x) + MaxPos.x * PagePos.x, y: MinPos.y * (1 - PagePos.y) + MaxPos.y * PagePos.y };
