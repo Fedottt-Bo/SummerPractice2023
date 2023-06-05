@@ -22,4 +22,33 @@ export async function InitWebGPU() {
   return { gpu : navigator.gpu, canvas : canvas, adapter : adapter, device : device, context : context };
 }
 
+export function CreateBuffer(device, size, flags=GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST, data=null) {
+  const buffer = device.createBuffer({
+    size: size,
+    usage: flags,
+    mappedAtCreation: data !== null
+  });                 
 
+  if (data !== null) {
+    new data.constructor(buffer.getMappedRange()).set(data);
+    buffer.unmap();
+  }
+
+  return buffer;
+}
+
+export function CreateTextureFromBitmap(device, img) {
+  const textureDescriptor = {
+    size: { width: img.width, height: img.height },
+    format: 'rgba8unorm',
+    usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST
+  };
+  const texture = device.createTexture(textureDescriptor);
+  device.queue.copyExternalImageToTexture({ source : img }, { texture : texture }, textureDescriptor.size);
+
+  return texture;
+}
+
+export async function CreateTextureFromImg(device, img) {
+  return CreateTextureFromBitmap(device, await createImageBitmap(img));
+}
