@@ -3,7 +3,8 @@ const express = require('express');
 const favicon = require('serve-favicon')
 const cookieParser = require('cookie-parser');
 const fs = require('fs');
-// Try to import https, otherwise import http
+
+// Try to import https, otherwise use only http
 let http, is_https = false;
 try {
   http = require('https');
@@ -23,7 +24,7 @@ const server = http.createServer(is_https ? {
 // Add server defaults
 app.use(cookieParser());
 app.use('/', express.static(__dirname + '/index'));
-app.use(favicon(__dirname + '/index/index_icon.ico'));
+app.use(favicon(__dirname + '/index/icon.ico'));
 
 // Initialize project pages array
 let ProjectIndices = new Set();
@@ -49,5 +50,14 @@ app.get('/list.txt*', (req, res) => {
   res.end(ProjectPagesJSON);
 });
 
-let port = 3000;
-server.listen(port, () => console.log(`listening on *:${port}`));
+if (is_https) {
+  server.listen(443, () => console.log(`main server listening on *:${443}`));
+
+  // Add redirecting server
+  require('http').createServer((req, res) => {
+    res.writeHead(301, { "Location": "https://" + req.headers['host'] + req.url });
+    res.end();
+  }).listen(80);
+} else {
+  server.listen(80, () => console.log(`main server listening on *:${80}`));
+}
