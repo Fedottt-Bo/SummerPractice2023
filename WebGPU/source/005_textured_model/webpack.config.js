@@ -14,7 +14,11 @@ module.exports = {
     minimizer: [
       new TerserPlugin({
         parallel: true,
+        extractComments: false,
         terserOptions: {
+          format: {
+            comments: false,
+          },
           compress: {
             passes: 4,
             unsafe_math: true,
@@ -31,7 +35,7 @@ module.exports = {
   },
   output:
   {
-    filename: './bundle.js',
+    filename: '../../resources/005_textured_model.js',
     library: 'bundle',
     path: path.resolve(__dirname),
   },

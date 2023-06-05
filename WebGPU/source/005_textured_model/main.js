@@ -5,12 +5,10 @@ const vec3 = glMatrix.vec3;
 
 // Import other files
 import { InitWebGPU } from './web_gpu_helper.js';
-import { LoadModel } from './model_data.js';
+import { LoadModel } from './model_data.js'
 
 // Number clamp function
 const clamp = (num, min, max) => Math.min(Math.max(num, min), max);
-
-
 
 // Variables collections for rendering
 var gpu = {}, model = {}, render_target = {};
