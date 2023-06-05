@@ -1,4 +1,6 @@
 import { default_pipeline } from './pipeline_data.js';
+import { CreateBuffer, CreateTextureFromImg } from './web_gpu_helper.js';
+import { Buffer } from 'buffer';
 
 var cubeData =
 {
@@ -52,22 +54,73 @@ var cubeData =
   ]
 };
 
-export async function LoadModel(device) {
-  const vert_buffer = device.createBuffer({
-    size: cubeData.vertices.length * 4,
-    usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
-    mappedAtCreation: true
-  });
-  new Float32Array(vert_buffer.getMappedRange()).set(new Float32Array(cubeData.vertices));
-  vert_buffer.unmap();
+async function fetch_buffer(url) {
+  if (url.startsWith('data:')) {
+    return Buffer.from(url.split(",")[1], 'base64');
+  } else {
+    return Buffer.from(await fetch(url).arrayBuffer());
+  }
+}
 
-  const ind_buffer = device.createBuffer({
-    size: cubeData.indices.length * 4,
-    usage: GPUBufferUsage.INDEX | GPUBufferUsage.COPY_DST,
-    mappedAtCreation: true
+function loadImage(url) {
+  return new Promise(resolve => {
+      const image = new Image();
+      image.addEventListener("load", () => {
+          resolve(image);
+      });
+      image.src = url;
   });
-  new Uint32Array(ind_buffer.getMappedRange()).set(new Uint32Array(cubeData.indices));
-  ind_buffer.unmap();
+}
+
+async function loadglTF(device, url) {
+  try {
+    let model = await (await fetch(url)).text();
+    let model_json = JSON.parse(model);
+    
+    // Load all buffers
+    for (let i = 0; i < model_json.buffers.length; i++) {
+      model_json.buffers[i] = await fetch_buffer(model_json.buffers[i].uri);
+    }
+
+    // Load all images
+    for (let i = 0; i < model_json.images.length; i++) {
+      let image_desc = model_json.images[i];
+      let image = null;
+
+      // Try to load image from URI
+      if (image_desc.uri !== undefined) {
+        image = await loadImage(image_desc.uri);      
+      }
+
+      // Try to read from buffer
+      if (image === null && image_desc.mimeType !== undefined && image_desc.bufferView !== undefined) {
+        let view = model_json.bufferViews[image_desc.bufferView];
+        let type = image_desc.mimeType;
+        let subbuf = model_json.buffers[view.buffer].subarray(view.byteOffset, view.byteOffset + view.byteLength);
+
+        image = await loadImage('data:' + type + ';base64,' + subbuf.toString('base64'));
+      }
+      
+      if (image === null) {
+        throw("Incorrect image description");
+      }
+
+      model_json.images[i] = await CreateTextureFromImg(device, image);
+    }
+
+    console.log(model_json);
+
+    return {};
+  } catch (e) {
+    console.error(`Failed to load model from ${url}`);
+
+    return {};
+  }
+}
+
+export async function LoadModel(device) {
+  const vert_buffer = CreateBuffer(device, cubeData.vertices.length * 4, GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST, new Float32Array(cubeData.vertices));
+  const ind_buffer = CreateBuffer(device, cubeData.indices.length * 4, GPUBufferUsage.INDEX | GPUBufferUsage.COPY_DST, new Uint32Array(cubeData.indices));
 
   let pipeline_desc = default_pipeline(device);
   pipeline_desc.depthStencil = {
