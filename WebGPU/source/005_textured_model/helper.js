@@ -1,4 +1,22 @@
+import { Buffer } from 'buffer';
+
 export const surface_format = 'bgra8unorm';
+
+export async function fetchBuffer(url) {
+  if (url.startsWith('data:')) {
+    return Buffer.from(url.split(",")[1], 'base64');
+  } else {
+    return Buffer.from(await fetch(url).then(data => data.arrayBuffer()));
+  }
+}
+
+export function loadImage(url) {
+  return new Promise(resolve => {
+    let image = new Image();
+    image.addEventListener("load", () => resolve(image));
+    image.src = url;
+  });
+}
 
 export async function InitWebGPU() {
   if (!navigator.gpu) {

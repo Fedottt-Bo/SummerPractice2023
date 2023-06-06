@@ -4,14 +4,14 @@ const mat4 = glMatrix.mat4;
 const vec3 = glMatrix.vec3;
 
 // Import other files
-import { InitWebGPU } from './web_gpu_helper.js';
-import { LoadModel } from './model_data.js'
+import { InitWebGPU } from './helper.js';
+import { CreateDefaultLight, loadglTF } from './model_data.js'
 
 // Number clamp function
 const clamp = (num, min, max) => Math.min(Math.max(num, min), max);
 
 // Variables collections for rendering
-var gpu = {}, model = {}, render_target = {};
+var gpu = {}, render_targets = [];
 
 // State control variables
 var button_pressed = false, mouse = { pos : {}, page_pos : {} };
@@ -22,22 +22,37 @@ export async function InitRender() {
   gpu = await InitWebGPU();
   let device = gpu.device;
 
-  model = await LoadModel(device);
+  /***
+   * Create first render pass
+   ***/
+  render_targets.push({});
 
-  render_target.depth_tex = device.createTexture({
+  let gbuffer_desc = {
+    size: [gpu.canvas.width, gpu.canvas.height, 1],
+    format: "rgba8unorm",
+    usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING,
+  }
+
+  render_targets[0].gbuffers = [
+    device.createTexture(gbuffer_desc),
+    device.createTexture(gbuffer_desc),
+    device.createTexture(gbuffer_desc)
+  ]
+
+  render_targets[0].depth_tex = device.createTexture({
     size: [gpu.canvas.width, gpu.canvas.height, 1],
     format: "depth24plus",
     usage: GPUTextureUsage.RENDER_ATTACHMENT
   });
 
-  render_target.render_pass_desc = {
-    colorAttachments: [{
-      clearValue: { r: 0.5, g: 0.5, b: 0.8, a: 1.0 },
-      loadOp: 'clear',
-      storeOp: 'store'
-    }],
+  render_targets[0].render_pass_desc = {
+    colorAttachments: [
+      {view: render_targets[0].gbuffers[0].createView(), clearValue: {r: 0, g: 0, b: 0, a: 0}, loadOp: 'clear', storeOp: 'store'},
+      {view: render_targets[0].gbuffers[1].createView(), clearValue: {r: 0, g: 0, b: 0, a: 0}, loadOp: 'clear', storeOp: 'store'},
+      {view: render_targets[0].gbuffers[2].createView(), clearValue: {r: 0, g: 0, b: 0, a: 0}, loadOp: 'clear', storeOp: 'store'},
+    ],
     depthStencilAttachment: {
-      view: (render_target.depth_tex_view = render_target.depth_tex.createView()),
+      view: (render_targets[0].depth_tex_view = render_targets[0].depth_tex.createView()),
       depthLoadValue: 1.0,
       depthClearValue: 1.0,
       depthLoadOp: 'clear',
@@ -45,27 +60,43 @@ export async function InitRender() {
     }
   };
 
-  model.uniform_buffer = device.createBuffer({
-    size: 0x40,
-    usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
-  });
+  render_targets[0].vp = mat4.create();
 
-  model.uniform_bind_group = device.createBindGroup({
-    layout: model.pipeline.getBindGroupLayout(0),
-    entries:
-    [
-      {
-        binding: 0,
-        resource:
-        {
-          buffer: model.uniform_buffer,
-          offset: 0,
-          size: 64
-        }
-      }
+  render_targets[0].models = [await loadglTF(device, './Strawberry.gltf')];
+
+  /***
+   * Create second render pass
+   ***/
+  render_targets.push({});
+
+  render_targets[1].gbuffers_bind_group_layout = device.createBindGroupLayout({
+    entries: [
+      {binding: 0, visibility: GPUShaderStage.FRAGMENT, texture: {viewDimension: '2d'}},
+      {binding: 1, visibility: GPUShaderStage.FRAGMENT, texture: {viewDimension: '2d'}},
+      {binding: 2, visibility: GPUShaderStage.FRAGMENT, texture: {viewDimension: '2d'}},
+    ]
+  })
+
+  render_targets[1].gbuffers_bind_group = device.createBindGroup({
+    layout: render_targets[1].gbuffers_bind_group_layout,
+    entries: [
+      {binding: 0, resource: render_targets[0].gbuffers[0].createView()},
+      {binding: 1, resource: render_targets[0].gbuffers[1].createView()},
+      {binding: 2, resource: render_targets[0].gbuffers[2].createView()}
     ]
   });
 
+  render_targets[1].render_pass_desc = {
+    colorAttachments: [
+      {clearValue: {r: 0.30, g: 0.47, b: 0.8, a: 1.0}, loadOp: 'clear', storeOp: 'store'},
+    ]
+  };
+
+  render_targets[1].lights = [CreateDefaultLight(device, render_targets[1].gbuffers_bind_group_layout)];
+
+  /***
+   * Add input callbacks
+   ***/
   gpu.canvas.addEventListener("mousemove", (event) => {
     event.preventDefault();
     let new_pos = { x : event.clientX - gpu.canvas.offsetLeft, y : event.clientY - gpu.canvas.offsetTop };
@@ -81,8 +112,9 @@ export async function InitRender() {
   });
   gpu.canvas.addEventListener("mousedown", (_event) => { button_pressed = true });
   gpu.canvas.addEventListener("mouseup", (_event) => { button_pressed = false });
-  gpu.canvas.addEventListener("wheel", (event) => camera.dist *= (1.0 + event.deltaY * 0.001));
+  gpu.canvas.addEventListener("wheel", (event) => { event.preventDefault(); camera.dist *= (1.0 + event.deltaY * 0.001); }, { capture : true, passive : false });
 
+  /* Begin render main loop */
   Tick();
 }
 
@@ -104,22 +136,30 @@ function Responce() {
   let proj = mat4.create();
   mat4.frustum(proj, -0.1, 0.1, -0.1, 0.1, 0.1, 100);
 
-  let vp = mat4.create();
-  mat4.multiply(vp, proj, view);
-
-  gpu.device.queue.writeBuffer(model.uniform_buffer, 0, vp);
+  mat4.multiply(render_targets[0].vp, proj, view);
 }
 
 function Render() {
-  const commandEncoder = gpu.device.createCommandEncoder();
+  let commandEncoder = gpu.device.createCommandEncoder();
 
-  render_target.render_pass_desc.colorAttachments[0].view = gpu.context.getCurrentTexture().createView();
-  const renderPass = commandEncoder.beginRenderPass(render_target.render_pass_desc);
+  {
+    let renderPass = commandEncoder.beginRenderPass(render_targets[0].render_pass_desc);
 
-  model.draw(renderPass);
+    render_targets[0].models.forEach(model => model.draw(render_targets[0].vp, mat4.create(), renderPass));
 
-  renderPass.end();
-  gpu.device.queue.submit([commandEncoder.finish()]);
+    renderPass.end();
+  }
+
+  {
+    render_targets[1].render_pass_desc.colorAttachments[0].view = gpu.context.getCurrentTexture().createView();
+    let renderPass = commandEncoder.beginRenderPass(render_targets[1].render_pass_desc);
+
+    render_targets[1].lights.forEach(light => light.draw(render_targets[1].gbuffers_bind_group, renderPass));
+
+    renderPass.end();
+  }
+  
+  gpu.device.queue.submit([commandEncoder.finish()]);  
 }
 
 function Tick() {
