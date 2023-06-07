@@ -19,7 +19,7 @@ var Time = Date.now(), PrevTime = Time, TimeMul = 1.0;
 var camera = { XAngle : 0, YAngle : 0.30, origin : [0, 0, 0], dist : 8 };
 
 let models_list = [];
-const models_names = [
+let models_names = [
   {url: "Strawberry.gltf", name: "Strawberry"},
   {url: "Duck.gltf", name: "Duck"},
 ]
@@ -32,23 +32,40 @@ export function selectModel(ind) {
   }
 }
 
-function addModelToList(ind, model, name) {
-  models_list[ind] = model;
+async function loadModel(ind) {
+  function addModelToList(ind, model, name) {
+    models_list[ind] = model;
+  
+    let element = document.createElement("option");
+    element.value = ind;
+    element.innerHTML = name.length < 30 ? name : name.slice(0, 28) + "...";
+    document.getElementById("models_list").appendChild(element);
+  }
 
-  let element = document.createElement("option");
-  element.value = ind;
-  element.innerHTML = name;
-  document.getElementById("models_list").appendChild(element);
+  let val = models_names[ind];
+
+  if (val !== undefined)
+    loadglTF(gpu.device, val.url)
+      .catch(_err => delete models_names[ind])
+      .then(model => addModelToList(ind, model, val.name || val.url));
 }
 
-async function loadModels(device) {
+async function loadDefaultModels(device) {
   models_list[-1] = undefined;
+  models_names.forEach((val, ind) => loadModel(ind))
+}
 
-  models_names.forEach((val, ind) => {
-    loadglTF(device, val.url)
-      .catch(_err => {})
-      .then(model => addModelToList(ind, model, val.name || val.url));
-  })
+export async function loadNewModel(url_str) {
+  let name = '';
+  try {
+    let url = new URL(url_str);
+    name = url.hostname + url.pathname;
+  } catch (_err) {
+    name = url_str;
+  }
+
+  models_names.push({url: url_str, name: name});
+  loadModel(models_names.length - 1);
 }
 
 export async function InitRender() {
@@ -56,9 +73,9 @@ export async function InitRender() {
   let device = gpu.device;
 
   /***
-   * Load all avalible models
+   * Load default avalible models
    ***/
-  loadModels(device);
+  loadDefaultModels(device);
 
   /***
    * Create first render pass

@@ -7,11 +7,11 @@
 
   <script type="text/javascript" src="005_textured_model.js"></script>
   <style>
-    .Selector {
+    .Input {
       background-color: cadetblue;
 
       border: 13% 13%;
-      border-radius: 5cqmin 5cqmin;
+      border-radius: 1vmax;
       border-color: black;
       border-style: solid;
       
@@ -19,7 +19,11 @@
       height: max-content;
     }
 
-    .Selector select {
+    .Input input {
+      border-radius: 1vmax;
+    }
+
+    .Input select {
       margin: 8px;
       background-color: gainsboro;
       color: darkblue;
@@ -29,10 +33,15 @@
 
 <body onload="bundle.InitRender()">
   <canvas id="canvas-webgpu" style="border: none;" width="800" height="800"></canvas><br>
+
+  <div class="Input">
+    <input type="text" id="model_url">
+    <input type="button" value="load" onclick="bundle.loadNewModel(document.getElementById('model_url').value);">
+  </div><br>
   
-  <div class="Selector">
+  <div class="Input">
     <select id="models_list" onchange="bundle.selectModel(this.options[this.selectedIndex].value);">
       <option value="-1">--</option>
     </select>
-  </div>
+  </div><br>
 </body>
