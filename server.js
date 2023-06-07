@@ -21,6 +21,14 @@ const server = http.createServer(is_https ? {
   cert: fs.readFileSync("certificate/cert.pem", 'utf8'),
 } : {}, app);
 
+// All requests validator
+app.all('*', function (req, res, next) {
+  req.on('close', () => {
+    console.log(`Request from ip: '${req.ip}' with method: '${req.method}' to URL: '${req.path}' ${(res.statusCode === 200) ? 'succeeded' : `failed (code: ${res.statusCode})`}`)
+  });
+  next();
+});
+
 // Add server defaults
 app.use(cookieParser());
 app.use('/', express.static(__dirname + '/index'));
