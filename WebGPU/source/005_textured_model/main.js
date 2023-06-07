@@ -167,8 +167,7 @@ export async function InitRender() {
   /***
    * Add input callbacks
    ***/
-  gpu.canvas.addEventListener("mousemove", (event) => {
-    event.preventDefault();
+  window.addEventListener("mousemove", (event) => {
     let new_pos = { x : event.clientX - gpu.canvas.offsetLeft, y : event.clientY - gpu.canvas.offsetTop };
 
     switch (button_pressed)
@@ -207,7 +206,7 @@ export async function InitRender() {
 
   gpu.canvas.oncontextmenu = (event) => { event.preventDefault(); event.stopPropagation(); };
   gpu.canvas.addEventListener("mousedown", (event) => { button_pressed = (button_pressed == -1) ? event.button : -1 });
-  gpu.canvas.addEventListener("mouseup", (_event) => { button_pressed = -1 });
+  window.addEventListener("mouseup", (_event) => { button_pressed = -1 });
   gpu.canvas.addEventListener("wheel", (event) => { event.preventDefault(); camera.dist *= (1.0 + event.deltaY * 0.001); }, { capture : true, passive : false });
 
   /* Begin render main loop */
