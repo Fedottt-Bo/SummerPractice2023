@@ -6,8 +6,33 @@
   <title>Web GPU try</title>
 
   <script type="text/javascript" src="005_textured_model.js"></script>
+  <style>
+    .Selector {
+      background-color: cadetblue;
+
+      border: 13% 13%;
+      border-radius: 5cqmin 5cqmin;
+      border-color: black;
+      border-style: solid;
+      
+      width: max-content;
+      height: max-content;
+    }
+
+    .Selector select {
+      margin: 8px;
+      background-color: gainsboro;
+      color: darkblue;
+    }
+  </style>
 </head>
 
 <body onload="bundle.InitRender()">
-  <canvas id="canvas-webgpu" style="border: none;" width="800" height="800"></canvas>
+  <canvas id="canvas-webgpu" style="border: none;" width="800" height="800"></canvas><br>
+  
+  <div class="Selector">
+    <select id="models_list" onchange="bundle.selectModel(this.options[this.selectedIndex].value);">
+      <option value="-1">--</option>
+    </select>
+  </div>
 </body>

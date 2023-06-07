@@ -70,3 +70,15 @@ export function CreateTextureFromBitmap(device, img) {
 export async function CreateTextureFromImg(device, img) {
   return CreateTextureFromBitmap(device, await createImageBitmap(img));
 }
+
+let EmptyTextureData = null;
+export function EmptyTexture(device) {
+  if (EmptyTextureData === null) {
+    EmptyTextureData = {
+      texture: device.createTexture({dimension: '2d', format: 'rgba8unorm', size: [16, 16], usage: GPUTextureUsage.TEXTURE_BINDING}),
+      sampler: device.createSampler({}),
+    }
+  }
+
+  return EmptyTextureData;
+}

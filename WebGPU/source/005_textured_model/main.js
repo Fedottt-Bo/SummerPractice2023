@@ -14,29 +14,70 @@ const clamp = (num, min, max) => Math.min(Math.max(num, min), max);
 var gpu = {}, render_targets = [];
 
 // State control variables
-var button_pressed = false, mouse = { pos : {}, page_pos : {} };
+var button_pressed = -1, mouse = { pos : {}, page_pos : {} };
 var Time = Date.now(), PrevTime = Time, TimeMul = 1.0;
 var camera = { XAngle : 0, YAngle : 0.30, origin : [0, 0, 0], dist : 8 };
+
+let models_list = [];
+const models_names = [
+  {url: "Strawberry.gltf", name: "Strawberry"},
+  {url: "Duck.gltf", name: "Duck"},
+]
+
+export function selectModel(ind) {
+  if (models_list[ind] === undefined) {
+    render_targets[0].models = [];
+  } else {
+    render_targets[0].models = [models_list[ind]];
+  }
+}
+
+function addModelToList(ind, model, name) {
+  models_list[ind] = model;
+
+  let element = document.createElement("option");
+  element.value = ind;
+  element.innerHTML = name;
+  document.getElementById("models_list").appendChild(element);
+}
+
+async function loadModels(device) {
+  models_list[-1] = undefined;
+
+  models_names.forEach((val, ind) => {
+    loadglTF(device, val.url)
+      .catch(_err => {})
+      .then(model => addModelToList(ind, model, val.name || val.url));
+  })
+}
 
 export async function InitRender() {
   gpu = await InitWebGPU();
   let device = gpu.device;
 
   /***
+   * Load all avalible models
+   ***/
+  loadModels(device);
+
+  /***
    * Create first render pass
    ***/
   render_targets.push({});
 
-  let gbuffer_desc = {
-    size: [gpu.canvas.width, gpu.canvas.height, 1],
-    format: "rgba8unorm",
-    usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING,
-  }
-
   render_targets[0].gbuffers = [
-    device.createTexture(gbuffer_desc),
-    device.createTexture(gbuffer_desc),
-    device.createTexture(gbuffer_desc)
+    device.createTexture({
+      size: [gpu.canvas.width, gpu.canvas.height, 1], format: "rgba8unorm-srgb",
+      usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING,
+    }),
+    device.createTexture({
+      size: [gpu.canvas.width, gpu.canvas.height, 1], format: "rgba16float",
+      usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING,
+    }),
+    device.createTexture({
+      size: [gpu.canvas.width, gpu.canvas.height, 1], format: "rgba16float",
+      usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING,
+    })
   ]
 
   render_targets[0].depth_tex = device.createTexture({
@@ -62,7 +103,8 @@ export async function InitRender() {
 
   render_targets[0].vp = mat4.create();
 
-  render_targets[0].models = [await loadglTF(device, './Strawberry.gltf')];
+  //render_targets[0].models = [await loadglTF(device, './Duck.gltf')];
+  render_targets[0].models = [];
 
   /***
    * Create second render pass
@@ -101,17 +143,43 @@ export async function InitRender() {
     event.preventDefault();
     let new_pos = { x : event.clientX - gpu.canvas.offsetLeft, y : event.clientY - gpu.canvas.offsetTop };
 
-    if (button_pressed)
+    switch (button_pressed)
     {
+    case 0:
       camera.XAngle = (camera.XAngle + (new_pos.x - mouse.pos.x) * -0.01) % (Math.PI * 2);
       camera.YAngle = clamp(camera.YAngle + (new_pos.y - mouse.pos.y) * 0.01, -Math.PI * 0.5, Math.PI * 0.5);
+      break;
+    case 2:
+      let offset = [
+        -Math.cos(camera.XAngle),
+        0,
+        Math.sin(camera.XAngle)
+      ];
+      vec3.normalize(offset, offset);
+      vec3.multiply(offset, offset, Array(3).fill((new_pos.x - mouse.pos.x) * 1 * camera.dist / (gpu.canvas.width)));
+      vec3.add(camera.origin, camera.origin, offset);
+
+      offset = [
+        -Math.sin(camera.XAngle) * Math.sin(camera.YAngle),
+        Math.cos(camera.YAngle),
+        -Math.cos(camera.XAngle) * Math.sin(camera.YAngle)
+      ]
+      vec3.normalize(offset, offset);
+      vec3.multiply(offset, offset, Array(3).fill((new_pos.y - mouse.pos.y) * 1 * camera.dist / (gpu.canvas.height)));
+      vec3.add(camera.origin, camera.origin, offset);
+      break;
+    case -1:
+    default:
+      break;
     }
 
     mouse.pos = new_pos;
     mouse.page_pos = { x: new_pos.x / gpu.canvas.width, y: new_pos.y / gpu.canvas.height };
   });
-  gpu.canvas.addEventListener("mousedown", (_event) => { button_pressed = true });
-  gpu.canvas.addEventListener("mouseup", (_event) => { button_pressed = false });
+
+  gpu.canvas.oncontextmenu = (event) => { event.preventDefault(); event.stopPropagation(); };
+  gpu.canvas.addEventListener("mousedown", (event) => { button_pressed = (button_pressed == -1) ? event.button : -1 });
+  gpu.canvas.addEventListener("mouseup", (_event) => { button_pressed = -1 });
   gpu.canvas.addEventListener("wheel", (event) => { event.preventDefault(); camera.dist *= (1.0 + event.deltaY * 0.001); }, { capture : true, passive : false });
 
   /* Begin render main loop */
@@ -122,8 +190,7 @@ function Responce() {
   Time += (Date.now() - PrevTime) * TimeMul;
   PrevTime = Date.now();
 
-  let eye_offset =
-  [
+  let eye_offset = [
     Math.sin(camera.XAngle) * Math.cos(camera.YAngle) * camera.dist,
     Math.sin(camera.YAngle) * camera.dist,
     Math.cos(camera.XAngle) * Math.cos(camera.YAngle) * camera.dist
