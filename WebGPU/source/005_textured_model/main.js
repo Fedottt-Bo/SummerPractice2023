@@ -5,7 +5,7 @@ const vec3 = glMatrix.vec3;
 
 // Import other files
 import { InitWebGPU } from './helper.js';
-import { CreateDefaultLight, loadglTF } from './model_data.js'
+import { CreateDefaultLight, createDirectLight, loadglTF } from './model_data.js'
 
 // Number clamp function
 const clamp = (num, min, max) => Math.min(Math.max(num, min), max);
@@ -147,11 +147,22 @@ export async function InitRender() {
 
   render_targets[1].render_pass_desc = {
     colorAttachments: [
-      {clearValue: {r: 0.30, g: 0.47, b: 0.8, a: 1.0}, loadOp: 'clear', storeOp: 'store'},
+      {clearValue: {r: 0, g: 0, b: 0, a: 1}, loadOp: 'clear', storeOp: 'store'},
     ]
   };
 
-  render_targets[1].lights = [CreateDefaultLight(device, render_targets[1].gbuffers_bind_group_layout)];
+  render_targets[1].lights = []
+
+  let dir0 = createDirectLight(device, render_targets[1].gbuffers_bind_group_layout);
+  dir0.update(device, {pos: [1.0, 1.0, 1.0], color: [0.8, 0, 0, 1]});
+
+  let dir1 = createDirectLight(device, render_targets[1].gbuffers_bind_group_layout);
+  dir1.update(device, {pos: [1.0, 1.0, -1.0], color: [0, 0.8, 0, 1]});
+
+  let dir2 = createDirectLight(device, render_targets[1].gbuffers_bind_group_layout);
+  dir2.update(device, {pos: [-1.0, 1.0, 0], color: [0, 0, 0.8, 1]});
+
+  render_targets[1].lights.push(dir0, dir1, dir2);
 
   /***
    * Add input callbacks

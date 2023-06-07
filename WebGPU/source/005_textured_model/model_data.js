@@ -5,6 +5,10 @@ import { vec2, vec3, mat4 } from 'gl-matrix';
 const promiseAllValues = async obj => zipObject(objectKeys(obj), await Promise.all(objectValues(obj).map(val => Promise.resolve(val))));
 const assert = (condition, message=null) => { if (!condition) throw message || "Assertion failed"; }
 
+function castArray(arr, type) {   
+  return new type(arr.buffer, arr.byteOffset, Math.floor(arr.byteLength / type.BYTES_PER_ELEMENT));
+}
+
 const shaders = {
   default:
 `struct Uniforms {
@@ -113,6 +117,7 @@ struct vs_in {
   @location(1) tex0 : vec2<f32>,
   @location(2) tangent : vec3<f32>,
   @location(3) bitangent : vec3<f32>,
+  @location(4) facing : f32,
 }
 
 struct vs_to_fs {
@@ -142,8 +147,8 @@ fn vs_main(input : vs_in) -> vs_to_fs {
   output.bitangent = normalize((uniforms.InvModelMatr * vec4<f32>(input.bitangent, 0.0)).xyz);
   output.tex0 = input.tex0;
 
-  var normal = cross(input.tangent, input.bitangent);
-  output.normal = normalize((uniforms.InvModelMatr * vec4<f32>(normalize(normal), 0.0)).xyz);  
+  var normal = normalize(cross(input.tangent, input.bitangent) * input.facing);
+  output.normal = normalize((uniforms.InvModelMatr * vec4<f32>(normal, 0.0)).xyz);  
 
   return output;
 }
@@ -164,7 +169,7 @@ fn fs_main(input : vs_to_fs) -> fs_out
   
   var basis : mat3x3<f32> = mat3x3<f32>(tangent, bitangent, normal);
   var new_normal : vec3<f32> = textureSample(normal_map_texture, normal_map_sampler, input.tex0).xyz * 2.0 - 1.0;
-  new_normal = tangent; //new_normal * basis;
+  new_normal = new_normal.x * tangent + new_normal.y * bitangent + new_normal.z * normal;
 
   output.pos_met = vec4<f32>(input.base_pos, base_met);
   output.norm_rough = vec4<f32>(normalize(new_normal), base_rough);
@@ -181,34 +186,32 @@ fn fs_main(input : vs_to_fs) -> fs_out
 function evalNormals(forEach, count, positions) {
   let normals = new Float32Array(count * 3);
 
-  let add_normal = (ind, norm) => {
-    let subarr = normals.subarray(ind * 3, ind * 3 + 3);
-    vec3.add(subarr, subarr, norm);
-  }
-
-  let eval_normal = (i0, i1, i2) => {
+  let update_normal = (i0, i1, i2) => {
+    let add_normal = (ind, norm) => {
+      normals[ind * 3] += norm[0];
+      normals[ind * 3 + 1] += norm[1];
+      normals[ind * 3 + 2] += norm[2];
+    }
+    
     let
       v0 = vec3.clone(positions.subarray(i0 * 3, i0 * 3 + 3)),
       v1 = vec3.clone(positions.subarray(i1 * 3, i1 * 3 + 3)),
       v2 = vec3.clone(positions.subarray(i2 * 3, i2 * 3 + 3));
     vec3.subtract(v0, v0, v1); vec3.subtract(v2, v2, v1);
-    vec3.cross(v0, v0, v2);
-    vec3.normalize(v0, v0);
+    vec3.cross(v1, v2, v0);
+    vec3.normalize(v1, v1);
 
-    return v0;
+    add_normal(i0, v1);
+    add_normal(i1, v1);
+    add_normal(i2, v1);
   }
 
   forEach((i0, i1, i2) => {
-    let norm = eval_normal(i0, i1, i2);
-
-    add_normal(i0, norm);
-    add_normal(i1, norm);
-    add_normal(i2, norm);
+    update_normal(i0, i1, i2);
   })
 
   for (let i = 2; i < normals.length; i += 3) {
     let norm = normals.subarray(i - 2, i + 1);
-    //vec3.set(norm, 1.0, 0.0, 0.0);
     vec3.normalize(norm, norm);
   }
 
@@ -220,76 +223,98 @@ function evalTangentSpace(forEach, count, positions, texture0) {
   let bitangents = new Float32Array(count * 3);
   let normals = new Float32Array(count * 3);
 
+  let add_to_arr = (arr, ind, vec) => {
+    arr[ind * 3] += vec[0];
+    arr[ind * 3 + 1] += vec[1];
+    arr[ind * 3 + 2] += vec[2];
+  }
+
+  let update_normal = (i0, i1, i2) => {
+    let add_normal = (ind, norm) => {
+      add_to_arr(normals, ind, norm);
+    }
+    
+    let
+      v0 = vec3.clone(positions.subarray(i0 * 3, i0 * 3 + 3)),
+      v1 = vec3.clone(positions.subarray(i1 * 3, i1 * 3 + 3)),
+      v2 = vec3.clone(positions.subarray(i2 * 3, i2 * 3 + 3));
+    vec3.subtract(v0, v0, v1); vec3.subtract(v2, v2, v1);
+    vec3.cross(v1, v2, v0);
+    vec3.normalize(v1, v1);
+
+    add_normal(i0, v1);
+    add_normal(i1, v1);
+    add_normal(i2, v1);
+  }
+
   forEach((i0, i1, i2) => {
-    let v0 = positions.subarray(i0 * 3, i0 * 3 + 3);
-    let v1 = positions.subarray(i1 * 3, i1 * 3 + 3);
-    let v2 = positions.subarray(i2 * 3, i2 * 3 + 3);
+    update_normal(i0, i1, i2);
 
-    let w0 = texture0.subarray(i0 * 2, i0 * 2 + 2);
-    let w1 = texture0.subarray(i1 * 2, i1 * 2 + 2);
-    let w2 = texture0.subarray(i2 * 2, i2 * 2 + 2);
-    
-    let
-      x1 = v1[0] - v0[0],
-      x2 = v2[0] - v0[0],
-      y1 = v1[1] - v0[1],
-      y2 = v2[1] - v0[1],
-      z1 = v1[2] - v0[2],
-      z2 = v2[2] - v0[2];
-    
-    let
-      s1 = w1[0] - w0[0],
-      s2 = w2[0] - w0[0],
-      t1 = w1[1] - w0[1],
-      t2 = w2[1] - w0[1];
-    
-    let r = 1.0 / (s1 * t2 - s2 * t1);
+    let v0 = vec3.clone(positions.subarray(i0 * 3, i0 * 3 + 3));
+    let v1 = vec3.clone(positions.subarray(i1 * 3, i1 * 3 + 3));
+    let v2 = vec3.clone(positions.subarray(i2 * 3, i2 * 3 + 3));
 
-    let sdir = vec3.create(), tdir = vec3.create();
-    vec3.set(sdir, (t2 * x1 - t1 * x2) * r, (t2 * y1 - t1 * y2) * r, (t2 * z1 - t1 * z2) * r);
-    vec3.set(tdir, (s1 * x2 - s2 * x1) * r, (s1 * y2 - s2 * y1) * r, (s1 * z2 - s2 * z1) * r);
-
-    let norm = vec3.create();
-    vec3.cross(norm, [x2, y2, z2], [x1, y1, z1]);
+    let w0 = vec2.clone(texture0.subarray(i0 * 2, i0 * 2 + 2));
+    let w1 = vec2.clone(texture0.subarray(i1 * 2, i1 * 2 + 2));
+    let w2 = vec2.clone(texture0.subarray(i2 * 2, i2 * 2 + 2));
     
-    vec3.add(tangents.subarray(i0 * 3, i0 * 3 + 3), tangents.subarray(i0 * 3, i0 * 3 + 3), sdir);
-    vec3.add(tangents.subarray(i1 * 3, i2 * 3 + 3), tangents.subarray(i1 * 3, i1 * 3 + 3), sdir);
-    vec3.add(tangents.subarray(i2 * 3, i1 * 3 + 3), tangents.subarray(i2 * 3, i2 * 3 + 3), sdir);
-    
-    vec3.add(bitangents.subarray(i0 * 3, i0 * 3 + 3), bitangents.subarray(i0 * 3, i0 * 3 + 3), tdir);
-    vec3.add(bitangents.subarray(i1 * 3, i2 * 3 + 3), bitangents.subarray(i1 * 3, i1 * 3 + 3), tdir);
-    vec3.add(bitangents.subarray(i2 * 3, i1 * 3 + 3), bitangents.subarray(i2 * 3, i2 * 3 + 3), tdir);
+    let e1 = vec3.create(), e2 = vec3.create();
+    vec3.subtract(e1, v1, v0);
+    vec3.subtract(e2, v2, v0);
 
-    vec3.add(normals.subarray(i0 * 3, i0 * 3 + 3), normals.subarray(i0 * 3, i0 * 3 + 3), norm);
-    vec3.add(normals.subarray(i1 * 3, i2 * 3 + 3), normals.subarray(i1 * 3, i1 * 3 + 3), norm);
-    vec3.add(normals.subarray(i2 * 3, i1 * 3 + 3), normals.subarray(i2 * 3, i2 * 3 + 3), norm);
+    let x1 = w1[0] - w0[0], x2 = w2[0] - w0[0];
+    let y1 = w1[1] - w0[1], y2 = w2[1] - w0[1];
+
+    let r = 1.0 / (x1 * y2 - x2 * y1);
+
+    let t = vec3.create(), tmp = vec3.create();
+    vec3.multiply(t, e1, [y2, y2, y2]);
+    vec3.multiply(tmp, e2, [y1, y1, y1]);
+    vec3.subtract(t, t, tmp);
+    vec3.multiply(t, t, [r, r, r]);
+
+    let b = vec3.create();
+    vec3.multiply(b, e2, [x1, x1, x1]);
+    vec3.multiply(tmp, e1, [x2, x2, x2]);
+    vec3.subtract(b, b, tmp);
+    vec3.multiply(b, b, [r, r, r]);
+
+    add_to_arr(tangents, i0, t);
+    add_to_arr(tangents, i1, t);
+    add_to_arr(tangents, i2, t);
+
+    add_to_arr(bitangents, i0, b);
+    add_to_arr(bitangents, i1, b);
+    add_to_arr(bitangents, i2, b);
   })
 
-  let tangent_space = new Float32Array(count * 6);
+  let tangent_space = new Float32Array(count * 7);
 
   for (let i = 0; i < count; i++) {
     let norm = normals.subarray(i * 3, i * 3 + 3);
     vec3.normalize(norm, norm);
 
-    let tang = tangents.subarray(i * 3, i * 3 + 3);
-    let bitang = bitangents.subarray(i * 3, i * 3 + 3);
-    
-    let final_tang = vec3.clone(norm);
-    vec3.multiply(final_tang, final_tang, Array(3).fill(vec3.dot(norm, tang)));
-    vec3.subtract(final_tang, tang, final_tang);
-    vec3.normalize(final_tang, final_tang);
-    
-    let final_bitang = vec3.create();
-    vec3.cross(final_bitang, norm, tang)
-    if (vec3.dot(final_bitang, bitang) < 0.0) {
-      final_bitang = final_tang;
-      final_tang = bitang;
-    } else {
-      final_bitang = bitang;
-    }
+    let t = vec3.clone(tangents.subarray(i * 3, i * 3 + 3));
+    vec3.normalize(t, t);
+    let b = vec3.clone(bitangents.subarray(i * 3, i * 3 + 3));
+    vec3.normalize(b, b);
 
-    tangent_space.set(final_tang, i * 6);
-    tangent_space.set(final_bitang, i * 6 + 3);
+    let tmp = vec3.dot(t, norm); tmp = [tmp, tmp, tmp];
+    vec3.multiply(tmp, tmp, norm);
+    vec3.subtract(t, t, tmp);
+    vec3.normalize(t, t);
+
+    tmp = vec3.dot(b, norm); tmp = [tmp, tmp, tmp];
+    vec3.multiply(tmp, tmp, norm);
+    vec3.subtract(b, b, tmp);
+    vec3.normalize(b, b);
+
+    let test_norm = vec3.create();
+    vec3.cross(test_norm, t, b);
+
+    tangent_space.set(t, i * 7);
+    tangent_space.set(b, i * 7 + 3);
+    tangent_space[i * 7 + 6] = (vec3.dot(test_norm, norm) > 0) ? 1 : -1;
   }
 
   return tangent_space;
@@ -300,7 +325,7 @@ export function loadglTF(device, url) {
 
   function loadglTFMesh(mesh) {
     function readAccessor(ind, flags) {
-      let accessor = model.accessors[ind], view = model.bufferViews[accessor.bufferView];
+      let accessor = model.accessors[ind];
       let [elm_size, type] = (() => {switch (accessor.componentType) {
         case 5120: return [1, accessor.normalized ? 'snorm8' : 'sint8'];
         case 5121: return [1, accessor.normalized ? 'unorm8' : 'uint8'];
@@ -434,7 +459,7 @@ export function loadglTF(device, url) {
       if (prim.material !== undefined) {
         let material = model.materials[prim.material];
 
-        /*if (material.normalTexture !== undefined) {
+        if (material.normalTexture !== undefined) {
           let index = material.normalTexture.index;
           if (index === undefined) throw("Invalid texture descriptor");
           let tex = model.textures[index];
@@ -444,11 +469,11 @@ export function loadglTF(device, url) {
             {binding: 6, visibility: GPUShaderStage.FRAGMENT, texture: {viewDimension: '2d'}}
           )
           prim.main_bind_group.entries.push({binding: 5, resource: model.samplers[tex.sampler]}, {binding: 6, resource: model.images[tex.source].createView()})
-          prim.pipeline.vertex.buffers.push({arrayStride: 24, attributes: [{shaderLocation: 2, format: 'float32x3', offset: 0}, {shaderLocation: 3, format: 'float32x3', offset: 12}]});
+          prim.pipeline.vertex.buffers.push({arrayStride: 28, attributes: [{shaderLocation: 2, format: 'float32x3', offset: 0}, {shaderLocation: 3, format: 'float32x3', offset: 12}, {shaderLocation: 4, format: 'float32', offset: 24}]});
           prim.pipeline.fragment.module = prim.pipeline.vertex.module = device.createShaderModule({ code: shaders.normal_map });
 
           prim.normal_map = true;
-        } else */{
+        } else {
           prim.pipeline.vertex.buffers.push({arrayStride: 12, attributes: [{shaderLocation: 2, format: 'float32x3', offset: 0}]});
           prim.pipeline.fragment.module = prim.pipeline.vertex.module = device.createShaderModule({ code: shaders.default });
 
@@ -518,11 +543,11 @@ export function loadglTF(device, url) {
           rnd_pass.drawIndexed(this.elements, 1, 0, 0);
         }
 
-        let indices = (prim.indices.type == 'uint16') ? new Uint16Array(prim.indices.data.buffer) : new Uint32Array(prim.indices.data.buffer);
+        let indices = (prim.indices.type == 'uint16') ? castArray(prim.indices.data, Uint16Array) : castArray(prim.indices.data, Uint32Array);
 
         switch (prim.pipeline.primitive.topology) {
         case "triangle-list":
-          forEach = func => {for (let i = 2; i < indices.length; i += 3) func(i - 2, i - 1, i)}
+          forEach = func => {for (let i = 2; i < indices.length; i += 3) func(indices[i - 2], indices[i - 1], indices[i])}
           break;
         case "triangle-strip":
           forEach = func => {
@@ -577,10 +602,10 @@ export function loadglTF(device, url) {
 
       if (prim.normal_map) {
         prim.vert_buffers.norm = evalTangentSpace(forEach, prim.vert_buffers.pos.count,
-          new Float32Array(prim.vert_buffers.pos.data.buffer), new Float32Array(prim.vert_buffers.tex0.data.buffer));
+          castArray(prim.vert_buffers.pos.data, Float32Array), castArray(prim.vert_buffers.tex0.data, Float32Array));
       } else {
         prim.vert_buffers.norm = evalNormals(forEach, prim.vert_buffers.pos.count,
-          new Float32Array(prim.vert_buffers.pos.data.buffer));
+          castArray(prim.vert_buffers.pos.data, Float32Array));
       }
 
       prim.vert_buffers.norm = CreateBuffer(device, prim.vert_buffers.norm.length * 4, GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST, prim.vert_buffers.norm);
@@ -764,9 +789,108 @@ export function loadglTF(device, url) {
     });
 }
 
-export function CreateDefaultLight(device, gbuffers_group_layout) {
+export function createDirectLight(device, main_group_layout) {
+  let uniform_bind_group_layout = device.createBindGroupLayout({
+    entries: [{
+      binding: 0,
+      visibility: GPUShaderStage.FRAGMENT,
+      buffer: {type: "uniform"},
+    }]
+  });
+
   let pipeline_desc = {
-    layout: device.createPipelineLayout({bindGroupLayouts: [gbuffers_group_layout]}),
+    layout: device.createPipelineLayout({bindGroupLayouts: [main_group_layout, uniform_bind_group_layout]}),
+    vertex: {
+      module: device.createShaderModule({ code:
+`@vertex
+fn main(@builtin(vertex_index) VertexIndex: u32) -> @builtin(position) vec4<f32> {
+  var pos = array<vec2<f32>, 6>(vec2<f32>(-1.0, -1.0), vec2<f32>(-1.0, 1.0), vec2<f32>(1.0, -1.0), vec2<f32>(1.0, -1.0), vec2<f32>(-1.0, 1.0), vec2<f32>(1.0, 1.0));
+  return vec4<f32>(pos[VertexIndex], 0.0, 1.0);
+}`      }),
+      entryPoint: "main"
+    },
+    fragment: {
+      module: device.createShaderModule({ code:
+`@group(0) @binding(0) var color_shade_tex : texture_2d<f32>;
+@group(0) @binding(1) var pos_met_tex : texture_2d<f32>;
+@group(0) @binding(2) var norm_rough_tex : texture_2d<f32>;
+
+struct light_data {
+  color : vec4<f32>,
+  dir : vec3<f32>,
+};
+@group(1) @binding(0) var<uniform> lightData : light_data;
+
+@fragment
+fn main(@builtin(position) coord : vec4<f32>) -> @location(0) vec4<f32> {
+  var icoord = vec2<i32>(floor(coord.xy));
+  var color_shade : vec4<f32> = textureLoad(color_shade_tex, icoord, 0);
+  var color = color_shade.rgb;
+  var shade = color_shade.w;
+  var pos_met : vec4<f32> = textureLoad(pos_met_tex, icoord, 0);
+  var pos = pos_met.xyz;
+  var met = pos_met.w;
+  var norm_rough : vec4<f32> = textureLoad(norm_rough_tex, icoord, 0);
+  var norm = norm_rough.xyz;
+  var rough = norm_rough.w;
+  
+  return vec4<f32>((color * max(0.13, dot(norm, lightData.dir))) * lightData.color.rgb, 1.0) * lightData.color.w;
+}`      }),
+      entryPoint: "main",
+      targets: [{
+        format: surface_format,
+        blend: {
+          color: {dstFactor: "one", operation: "add", srcFactor: "one"},
+          alpha: {dstFactor: "one", operation: "add", srcFactor: "one"}
+        }
+      }]
+    },
+    primitive: {
+      topology: "triangle-list",
+      cullMode: 'none'
+    },
+  };
+
+  let uniform_buffer_size = 32;
+  let uniform_buffer = CreateBuffer(device, uniform_buffer_size, GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST);
+  let uniform_bind_group = device.createBindGroup({
+    layout: uniform_bind_group_layout,
+    entries: [{
+      binding: 0,
+      resource: {
+        buffer: uniform_buffer,
+        offset: 0,
+        size: uniform_buffer_size,
+      }
+    }]
+  });
+
+  return {
+    pipeline: device.createRenderPipeline(pipeline_desc),
+    uniform_buffer, uniform_bind_group, uniform_buffer_size,
+    
+    draw: function (bind_group, rnd_pass) {
+      rnd_pass.setPipeline(this.pipeline);
+      rnd_pass.setBindGroup(0, bind_group);
+      rnd_pass.setBindGroup(1, this.uniform_bind_group);
+
+      rnd_pass.draw(6, 1, 0, 0);
+    },
+    update: function (device, desc) {
+      if (desc.color !== undefined) device.queue.writeBuffer(this.uniform_buffer, 0, new Float32Array(desc.color), 0, 4);
+      if (desc.pos !== undefined) {
+        let tmp = vec3.create();
+        vec3.normalize(tmp, new Float32Array(desc.pos));                            
+
+        device.queue.writeBuffer(this.uniform_buffer, 4 * 4, tmp, 0, 3);
+      }
+    }
+  }
+}
+
+export function CreateDefaultLight(device, main_group_layout) {
+  let pipeline_desc = {
+    layout: device.createPipelineLayout({bindGroupLayouts: [main_group_layout]}),
     vertex: {
       module: device.createShaderModule({ code:
 `@vertex
@@ -784,10 +908,18 @@ fn main(@builtin(vertex_index) VertexIndex: u32) -> @builtin(position) vec4<f32>
 
 @fragment
 fn main(@builtin(position) coord : vec4<f32>) -> @location(0) vec4<f32> {
-  return vec4<f32>(textureLoad(color_shade_tex, vec2<i32>(floor(coord.xy)), 0).rgb, 1.0);
+  var color_shade : vec4<f32> = textureLoad(color_shade_tex, vec2<i32>(floor(coord.xy)), 0);
+
+  return vec4<f32>(color_shade.rgb, 1.0);
 }`      }),
       entryPoint: "main",
-      targets: [{ format: surface_format }]
+      targets: [{
+        format: surface_format,
+        blend: {
+          color: {dstFactor: "one", operation: "add", srcFactor: "one"},
+          alpha: {dstFactor: "one", operation: "add", srcFactor: "one"}
+        }
+      }]
     },
     primitive: {
       topology: "triangle-list",
@@ -802,6 +934,7 @@ fn main(@builtin(position) coord : vec4<f32>) -> @location(0) vec4<f32> {
       rnd_pass.setBindGroup(0, bind_group);
 
       rnd_pass.draw(6, 1, 0, 0);
-    }
+    },
+    update: function (_device, _desc) {}
   }
 }
