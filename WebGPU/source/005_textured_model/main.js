@@ -15,7 +15,7 @@ var gpu = {}, render_targets = [];
 
 // State control variables
 var button_pressed = -1, mouse = { pos : {}, page_pos : {} };
-var Time = Date.now(), PrevTime = Time, TimeMul = 1.0;
+var Time = Date.now() / 1000, PrevTime = Time, TimeMul = 1.0;
 var camera = { XAngle : 0, YAngle : 0.30, origin : [0, 0, 0], dist : 8 };
 
 let models_list = [];
@@ -215,8 +215,9 @@ export async function InitRender() {
 }
 
 function Responce() {
-  Time += (Date.now() - PrevTime) * TimeMul;
-  PrevTime = Date.now();
+  let CurTime = Date.now() / 1000;
+  Time += (CurTime - PrevTime) * TimeMul;
+  PrevTime = CurTime;
 
   let eye_offset = [
     Math.sin(camera.XAngle) * Math.cos(camera.YAngle) * camera.dist,
@@ -232,6 +233,10 @@ function Responce() {
   mat4.frustum(proj, -0.1, 0.1, -0.1, 0.1, 0.1, 100);
 
   mat4.multiply(render_targets[0].vp, proj, view);
+
+  render_targets[1].lights[0].update(gpu.device, {pos: [Math.cos(Time * 1.0 + 0.47), 1.0, Math.sin(Time * 0.75 + 0.30)]});
+  render_targets[1].lights[1].update(gpu.device, {pos: [Math.cos(Time * 1.3 + 0.8), 1.0, Math.sin(Time * 0.47 + 0.47)]});
+  render_targets[1].lights[2].update(gpu.device, {pos: [Math.cos(Time * 0.666 + 1.8), 1.0, Math.sin(Time * 1.8 + 0.8)]});
 }
 
 function Render() {
