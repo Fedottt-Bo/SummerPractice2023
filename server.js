@@ -5,13 +5,20 @@ const cookieParser = require('cookie-parser');
 const fs = require('fs');
 
 // Try to import https, otherwise use only http
-let http, is_https = false;
-try {
-  http = require('https');
-  is_https = true;
-} catch (e) {
+const try_use_https = true;
+let http = undefined, is_https = false; 
+if (try_use_https) {
+  try {
+    http = require('https');
+    is_https = true;
+  } catch (e) {
+    http = undefined;
+    console.log("HTTPS is not supported, switched on HTTP");
+  }
+}
+
+if (http === undefined) {
   http = require('http');
-  console.log("HTTPS is not supported, switched on HTTP");
 }
 
 // Create server
