@@ -4,7 +4,7 @@ const mat4 = glMatrix.mat4;
 const vec3 = glMatrix.vec3;
 
 // Import other files
-import { InitWebGPU } from './helper.js';
+import { CreateBuffer, InitWebGPU } from './helper.js';
 import { CreateDefaultLight, createDirectLight, loadglTF } from './model_data.js'
 
 // Number clamp function
@@ -130,18 +130,26 @@ export async function InitRender() {
 
   render_targets[1].gbuffers_bind_group_layout = device.createBindGroupLayout({
     entries: [
-      {binding: 0, visibility: GPUShaderStage.FRAGMENT, texture: {viewDimension: '2d'}},
+      {binding: 0, visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT, buffer: {type: "uniform"}},
       {binding: 1, visibility: GPUShaderStage.FRAGMENT, texture: {viewDimension: '2d'}},
       {binding: 2, visibility: GPUShaderStage.FRAGMENT, texture: {viewDimension: '2d'}},
+      {binding: 3, visibility: GPUShaderStage.FRAGMENT, texture: {viewDimension: '2d'}},
     ]
   })
 
+  render_targets[1].scene_uniform_buffer_size = 4 * (3 + 1 + 3 + 1);
+  render_targets[1].scene_uniform_buffer = CreateBuffer(device, render_targets[1].scene_uniform_buffer_size, GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST);
   render_targets[1].gbuffers_bind_group = device.createBindGroup({
     layout: render_targets[1].gbuffers_bind_group_layout,
     entries: [
-      {binding: 0, resource: render_targets[0].gbuffers[0].createView()},
-      {binding: 1, resource: render_targets[0].gbuffers[1].createView()},
-      {binding: 2, resource: render_targets[0].gbuffers[2].createView()}
+      {binding: 0, resource: {
+        buffer: render_targets[1].scene_uniform_buffer,
+        offset: 0,
+        size: render_targets[1].scene_uniform_buffer_size
+      }},
+      {binding: 1, resource: render_targets[0].gbuffers[0].createView()},
+      {binding: 2, resource: render_targets[0].gbuffers[1].createView()},
+      {binding: 3, resource: render_targets[0].gbuffers[2].createView()}
     ]
   });
 
@@ -154,13 +162,13 @@ export async function InitRender() {
   render_targets[1].lights = []
 
   let dir0 = createDirectLight(device, render_targets[1].gbuffers_bind_group_layout);
-  dir0.update(device, {pos: [1.0, 1.0, 1.0], color: [0.8, 0, 0, 1]});
+  dir0.update(device, {pos: [1.0, 1.0, 1.0], color: [1.3, 0.13, 0.13, 1]});
 
   let dir1 = createDirectLight(device, render_targets[1].gbuffers_bind_group_layout);
-  dir1.update(device, {pos: [1.0, 1.0, -1.0], color: [0, 0.8, 0, 1]});
+  dir1.update(device, {pos: [1.0, 1.0, -1.0], color: [0.13, 1.3, 0.13, 1]});
 
   let dir2 = createDirectLight(device, render_targets[1].gbuffers_bind_group_layout);
-  dir2.update(device, {pos: [-1.0, 1.0, 0], color: [0, 0, 0.8, 1]});
+  dir2.update(device, {pos: [-1.0, 1.0, 0], color: [0.13, 0.13, 1.3, 1]});
 
   render_targets[1].lights.push(dir0, dir1, dir2);
 
@@ -218,20 +226,23 @@ function Responce() {
   Time += (CurTime - PrevTime) * TimeMul;
   PrevTime = CurTime;
 
-  let eye_offset = [
-    Math.sin(camera.XAngle) * Math.cos(camera.YAngle) * camera.dist,
-    Math.sin(camera.YAngle) * camera.dist,
-    Math.cos(camera.XAngle) * Math.cos(camera.YAngle) * camera.dist
+  let eye_offset_dir = [
+    Math.sin(camera.XAngle) * Math.cos(camera.YAngle),
+    Math.sin(camera.YAngle),
+    Math.cos(camera.XAngle) * Math.cos(camera.YAngle)
   ]
-  mat4.add(eye_offset, eye_offset, camera.origin);
+  let cam_pos = eye_offset_dir.map((val, ind) => camera.origin[ind] + val * camera.dist);
 
   let view = mat4.create();
-  mat4.lookAt(view, eye_offset, camera.origin, [0, 1, 0]);
+  mat4.lookAt(view, cam_pos, camera.origin, [0, 1, 0]);
 
   let proj = mat4.create();
   mat4.frustum(proj, -0.1, 0.1, -0.1, 0.1, 0.1, 100);
 
   mat4.multiply(render_targets[0].vp, proj, view);
+
+  let tmp = new Float32Array([].concat(cam_pos, gpu.canvas.width, eye_offset_dir.map(val => -val), gpu.canvas.height));
+  gpu.device.queue.writeBuffer(render_targets[1].scene_uniform_buffer, 0, tmp, 0, 3 + 1 + 3 + 1);
 
   render_targets[1].lights[0].update(gpu.device, {pos: [Math.cos(Time * 1.0 + 0.47), 1.0, Math.sin(Time * 0.75 + 0.30)]});
   render_targets[1].lights[1].update(gpu.device, {pos: [Math.cos(Time * 1.3 + 0.8), 1.0, Math.sin(Time * 0.47 + 0.47)]});
