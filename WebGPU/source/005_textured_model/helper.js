@@ -21,8 +21,11 @@ export function loadImage(url) {
 export async function InitWebGPU() {
   if (!navigator.gpu) {
     let msg = 'Your current browser does not support WebGPU!';
+    if (window.self !== window.top) msg += '\nThis page seems to be opened as embedded, which can block WebGPU access. Try to open it in separate tab.'
 
     console.log(msg);
+    alert(msg);
+    
     throw msg;
   }
 
