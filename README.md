@@ -1,7 +1,8 @@
 # Computer Graphics Support Group of SPb PML №30
 ## Summer practice 2023
 >Date: **01.06.2023 - 24.06.2023**\
-User: **FB1** *(Borodulin Fedor 10-1)*
+User: **FB1** *(Borodulin Fedor 10-1)*\
+**Avalible online on [free hosting](https://render.com/)**: <a href="https://fb1-sum-prac-2023.onrender.com">LINK</a><br>
 
 ### Mondelbrot fractal
 ><img src="https://github.com/Fedottt-Bo/SummerPractice2023/assets/77093554/a099cc7e-dfc9-44f2-a2e8-cfd48faef1a3" width="256" height="256"/><br>
