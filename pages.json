@@ -2,23 +2,23 @@
   "index": 0,
   "indices": [
     {
-      "path": "/",
+      "path": "",
       "title": "FB1 projects",
       "pages": [
         {"url": "Fractal/Mondel.html?path=/Fractal/Mondel1/", "name": "Mondelbrot"},
-        {"url": "Fractal/Mondel.html?path=/Fractal/Mondel2/", "name": "Mondelbrot"},
+        {"url": "Fractal/Mondel.html?path=/Fractal/Mondel2/", "name": "Julia"},
         {"url": "Fractal/Newton.html?path=/Fractal/Newton1/", "name": "Newton Classic (3rd power)"},
         {"url": "Fractal/Newton.html?path=/Fractal/Newton2/", "name": "Newton Classic (5th power)"},
         {"url": "Fractal/Newton.html?path=/Fractal/Newton3/", "name": "Newton Classic (13th power)"},
         {"url": "Fractal/Newton.html?path=/Fractal/Newton4/", "name": "Newton Z*sin(Z)"}
       ],
       "resources": [
-        "/Fractal/Mondel1/",
-        "/Fractal/Mondel2/",
-        "/Fractal/Newton1/",
-        "/Fractal/Newton2/",
-        "/Fractal/Newton3/",
-        "/Fractal/Newton4/"
+        {"url": "/Fractal/Mondel1/"},
+        {"url": "/Fractal/Mondel2/"},
+        {"url": "/Fractal/Newton1/"},
+        {"url": "/Fractal/Newton2/"},
+        {"url": "/Fractal/Newton3/"},
+        {"url": "/Fractal/Newton4/"}
       ],
       "children": [
         1
@@ -35,7 +35,7 @@
         {"url": "samples/005_textured_model.html", "name": "Textured model"}
       ],
       "resources": [
-        "resources/"
+        {"url": "samples/", "uri": "resources/"}
       ]
     }
   ]
