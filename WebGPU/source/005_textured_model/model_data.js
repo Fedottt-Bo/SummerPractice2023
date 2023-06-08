@@ -962,9 +962,17 @@ fn main(@builtin(position) coord : vec4<f32>) -> @location(0) vec4<f32> {
   }
 }
 
-export function CreateDefaultLight(device, main_group_layout) {
+export function createAmbientLight(device, main_group_layout) {
+  let uniform_bind_group_layout = device.createBindGroupLayout({
+    entries: [{
+      binding: 0,
+      visibility: GPUShaderStage.FRAGMENT,
+      buffer: {type: "uniform"},
+    }]
+  });
+
   let pipeline_desc = {
-    layout: device.createPipelineLayout({bindGroupLayouts: [main_group_layout]}),
+    layout: device.createPipelineLayout({bindGroupLayouts: [main_group_layout, uniform_bind_group_layout]}),
     vertex: {
       module: device.createShaderModule({ code:
 `@vertex
@@ -976,15 +984,21 @@ fn main(@builtin(vertex_index) VertexIndex: u32) -> @builtin(position) vec4<f32>
     },
     fragment: {
       module: device.createShaderModule({ code:
-`@group(0) @binding(0) var color_shade_tex : texture_2d<f32>;
-@group(0) @binding(1) var pos_met_tex : texture_2d<f32>;
-@group(0) @binding(2) var norm_rough_tex : texture_2d<f32>;
+`@group(0) @binding(1) var color_shade_tex : texture_2d<f32>;
+
+struct light_data {
+  color : vec4<f32>
+};
+@group(1) @binding(0) var<uniform> lightData : light_data;
 
 @fragment
 fn main(@builtin(position) coord : vec4<f32>) -> @location(0) vec4<f32> {
-  var color_shade : vec4<f32> = textureLoad(color_shade_tex, vec2<i32>(floor(coord.xy)), 0);
-
-  return vec4<f32>(color_shade.rgb, 1.0);
+  var icoord = vec2<i32>(floor(coord.xy));
+  var color_shade : vec4<f32> = textureLoad(color_shade_tex, icoord, 0);
+  var color = color_shade.rgb;
+  var shade = color_shade.w;
+  
+  return vec4<f32>(color * lightData.color.rgb, 1.0) * lightData.color.w;
 }`      }),
       entryPoint: "main",
       targets: [{
@@ -1001,14 +1015,33 @@ fn main(@builtin(position) coord : vec4<f32>) -> @location(0) vec4<f32> {
     },
   };
 
+  let uniform_buffer_size = 16;
+  let uniform_buffer = CreateBuffer(device, uniform_buffer_size, GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST);
+  let uniform_bind_group = device.createBindGroup({
+    layout: uniform_bind_group_layout,
+    entries: [{
+      binding: 0,
+      resource: {
+        buffer: uniform_buffer,
+        offset: 0,
+        size: uniform_buffer_size,
+      }
+    }]
+  });
+
   return {
     pipeline: device.createRenderPipeline(pipeline_desc),
+    uniform_buffer, uniform_bind_group, uniform_buffer_size,
+    
     draw: function (bind_group, rnd_pass) {
       rnd_pass.setPipeline(this.pipeline);
       rnd_pass.setBindGroup(0, bind_group);
+      rnd_pass.setBindGroup(1, this.uniform_bind_group);
 
       rnd_pass.draw(6, 1, 0, 0);
     },
-    update: function (_device, _desc) {}
+    update: function (device, desc) {
+      if (desc.color !== undefined) device.queue.writeBuffer(this.uniform_buffer, 0, new Float32Array(desc.color), 0, 4);
+    }
   }
 }

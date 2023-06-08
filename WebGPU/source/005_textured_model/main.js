@@ -5,7 +5,7 @@ const vec3 = glMatrix.vec3;
 
 // Import other files
 import { CreateBuffer, InitWebGPU } from './helper.js';
-import { CreateDefaultLight, createDirectLight, loadglTF } from './model_data.js'
+import { CreateDefaultLight, createAmbientLight, createDirectLight, loadglTF } from './model_data.js'
 
 // Number clamp function
 const clamp = (num, min, max) => Math.min(Math.max(num, min), max);
@@ -170,7 +170,10 @@ export async function InitRender() {
   let dir2 = createDirectLight(device, render_targets[1].gbuffers_bind_group_layout);
   dir2.update(device, {pos: [-1.0, 1.0, 0], color: [0.13, 0.13, 1.3, 1]});
 
-  render_targets[1].lights.push(dir0, dir1, dir2);
+  let amb0 = createAmbientLight(device, render_targets[1].gbuffers_bind_group_layout);
+  amb0.update(device, {color: [0.18, 0.18, 0.18, 1]});
+
+  render_targets[1].lights.push(dir0, dir1, dir2, amb0);
 
   /***
    * Add input callbacks
