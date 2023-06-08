@@ -307,7 +307,31 @@
     }
   </script>
 
+  <style>
+    .CGSGLogo {
+      position: absolute;
+      right: 0;
+      top: 0;
+      width: fit-content;
+      height: fit-content;
+      margin: 1vmin;
+    }
 
+    .CGSGLogo img {
+      height: 120px;
+      width: 160px;
+    }
+
+    .ReturnButton {
+      padding: 13px;
+      background-color: coral;
+      border-radius: 8px;      
+      text-align: center;
+      font-size: 18px;
+      font-family: "Consolas";
+      text-decoration: none;
+    }
+  </style>
 </head>
 
 
@@ -318,7 +342,9 @@
 
   <label for="input_n"> Eval depth </label> <input type="number" id="n" onkeyup="update_n()"><br>
   <label for="input_n"> Move speed </label> <input type="number" id="k" onkeyup="update_k()"><br>
-
+  
+  <br><a class="ReturnButton" href="../">Back</a>
+  <a href="https://www.school30.spb.ru/cgsg/" class="CGSGLogo"><img src="/cgsg.png"/></a>
 </body>
 
 </html>
