@@ -116,9 +116,7 @@ function generateIndex(title, pages, children, parent_path=undefined) {
       <span class="Handle">${title}</span><br>
       ${pages_tag}
       ${children_tag}
-      <a href="https://www.school30.spb.ru/cgsg/" class="CGSGLogo">
-        <img src="https://python2014.rutsky.org/09_interoperability/_images/cgsg.png"/>
-      </a>
+      <a href="https://www.school30.spb.ru/cgsg/" class="CGSGLogo"><img src="/cgsg.png"/></a>
       ${back_button}
     </div>
   </body>
