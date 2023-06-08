@@ -32,3 +32,7 @@ Adds vertex buffer (first) and index buffer (second).
 ><img src="https://github.com/Fedottt-Bo/SummerPractice2023/assets/77093554/74a7724c-60a3-4324-ab08-8cd6227b3a79" width="256" height="256"/><br>
 3D cube with movable camera sample.\
 Adds depth buffer and uniform buffer usage.
+
+><img src=https://github.com/Fedottt-Bo/SummerPractice2023/assets/77093554/9bc98422-f9fc-4ffa-a007-22898b86fc1e width="256" height="256"/><img src=https://github.com/Fedottt-Bo/SummerPractice2023/assets/77093554/43ede9b0-bc66-4c6a-a257-caab4a618c9b width="256" height="256"/><br>
+glTF models with movable camera and animated light sources sample.\
+Adds deffered lighting (with GBuffers), glTF to WebGPU loading (with normals and tangent space generation).
