@@ -1,0 +1,23 @@
+.CGSGLogo {
+  position: absolute;
+  right: 0;
+  top: 0;
+  width: fit-content;
+  height: fit-content;
+  margin: 1vmin;
+}
+
+.CGSGLogo img {
+  height: 120px;
+  width: 160px;
+}
+
+.ReturnButton {
+  padding: 13px;
+  background-color: coral;
+  border-radius: 8px;      
+  text-align: center;
+  font-size: 18px;
+  font-family: "Consolas";
+  text-decoration: none;
+}

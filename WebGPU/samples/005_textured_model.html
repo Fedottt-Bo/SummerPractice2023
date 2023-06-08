@@ -29,19 +29,21 @@
       color: darkblue;
     }
   </style>
+  <link rel="stylesheet" href="base_style.css">
 </head>
 
 <body onload="bundle.InitRender()">
   <canvas id="canvas-webgpu" style="border: none;" width="800" height="800"></canvas><br>
 
   <div class="Input">
-    <input type="text" id="model_url">
-    <input type="button" value="load" onclick="bundle.loadNewModel(document.getElementById('model_url').value);">
-  </div><br>
-  
-  <div class="Input">
     <select id="models_list" onchange="bundle.selectModel(this.options[this.selectedIndex].value);">
       <option value="-1">--</option>
     </select>
-  </div><br>
+
+    <input type="text" id="model_url">
+    <input type="button" value="load" onclick="bundle.loadNewModel(document.getElementById('model_url').value);">
+  </div>
+
+  <br><a class="ReturnButton" href="../">Back</a>
+  <a href="https://www.school30.spb.ru/cgsg/" class="CGSGLogo"><img src="/cgsg.png"/></a>
 </body>
