@@ -6,29 +6,36 @@ const fs = require('fs');
 const { exit } = require('process');
 const path = require('path');
 
+// Create express app
+const app = express();
+let server = undefined;
+
 // Try to import https, otherwise use only http
+const http = require('http');
+
 const try_use_https = true;
-let http = undefined, is_https = false; 
+let https, is_https = false; 
+
 if (try_use_https) {
   try {
-    http = require('https');
+    https = require('https');
+    server = https.createServer({
+      key: fs.readFileSync("certificate/key.pem", 'utf8'),
+      cert: fs.readFileSync("certificate/cert.pem", 'utf8'),
+    }, app);
+
     is_https = true;
   } catch (e) {
-    http = undefined;
-    console.log("HTTPS is not supported, switched on HTTP");
+    https = undefined;
+    is_https = false;
+    
+    console.log("HTTPS failed, switching on HTTP");
   }
 }
 
-if (http === undefined) {
-  http = require('http');
+if (server === undefined) {
+  server = http.createServer({}, app);
 }
-
-// Create server
-const app = express();
-const server = http.createServer(is_https ? {
-  key: fs.readFileSync("certificate/key.pem", 'utf8'),
-  cert: fs.readFileSync("certificate/cert.pem", 'utf8'),
-} : {}, app);
 
 // All requests validator
 app.all('*', function (req, res, next) {
@@ -187,7 +194,7 @@ if (is_https) {
   server.listen(443, () => console.log(`main server listening on *:${443}`));
 
   // Add redirecting server
-  require('http').createServer((req, res) => {
+  http.createServer((req, res) => {
     res.writeHead(301, { "Location": "https://" + req.headers['host'] + req.url });
     res.end();
   }).listen(80);
