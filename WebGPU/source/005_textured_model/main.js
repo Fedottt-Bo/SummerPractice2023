@@ -185,11 +185,7 @@ export async function InitRender() {
   let amb0 = createAmbientLight(device, render_targets[1].gbuffers_bind_group_layout);
   amb0.update(device, {color: [0.18, 0.18, 0.18, 1]});
 
-  let dir3 = createDirectLight(device, render_targets[1].gbuffers_bind_group_layout);
-  dir3.update(device, {pos: [0, -1, 0], color: [1, 1, 1, 10]});
-
-  //render_targets[1].lights.push(dir0, dir1, dir2, amb0, dir3);
-  render_targets[1].lights.push(amb0);
+  render_targets[1].lights.push(dir0, dir1, dir2, amb0);
 
   /***
    * Create third render pass
@@ -297,9 +293,9 @@ function Responce() {
   let tmp = new Float32Array([].concat(cam_pos, gpu.canvas.width, eye_offset_dir.map(val => -val), gpu.canvas.height));
   gpu.device.queue.writeBuffer(render_targets[1].scene_uniform_buffer, 0, tmp, 0, 3 + 1 + 3 + 1);
 
-  /*render_targets[1].lights[0].update(gpu.device, {pos: [Math.cos(Time * 1.0 + 0.47), 1.0, Math.sin(Time * 0.75 + 0.30)]});
+  render_targets[1].lights[0].update(gpu.device, {pos: [Math.cos(Time * 1.0 + 0.47), 1.0, Math.sin(Time * 0.75 + 0.30)]});
   render_targets[1].lights[1].update(gpu.device, {pos: [Math.cos(Time * 1.3 + 0.8), 1.0, Math.sin(Time * 0.47 + 0.47)]});
-  render_targets[1].lights[2].update(gpu.device, {pos: [Math.cos(Time * 0.666 + 1.8), 1.0, Math.sin(Time * 1.8 + 0.8)]});*/
+  render_targets[1].lights[2].update(gpu.device, {pos: [Math.cos(Time * 0.666 + 1.8), 1.0, Math.sin(Time * 1.8 + 0.8)]});
 }
 
 function Render() {
