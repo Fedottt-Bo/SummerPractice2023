@@ -5,9 +5,12 @@ const cookieParser = require('cookie-parser');
 const fs = require('fs');
 const { exit } = require('process');
 const path = require('path');
+const cors = require('cors');
 
 // Create express app
 const app = express();
+app.use(cors({credentials: true, origin: true}));
+
 let server = undefined;
 
 // Try to import https, otherwise use only http
@@ -37,11 +40,12 @@ if (server === undefined) {
   server = http.createServer({}, app);
 }
 
-// All requests validator
+// All requests handler
 app.all('*', function (req, res, next) {
   req.on('close', () => {
     console.log(`Request from ip: '${req.ip}' with method: '${req.method}' to URL: '${req.path}' ${(res.statusCode === 200) ? 'succeeded' : `failed (code: ${res.statusCode})`}`)
   });
+
   next();
 });
 
