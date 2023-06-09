@@ -43,7 +43,7 @@ export async function InitWebGPU() {
   return { gpu : navigator.gpu, canvas : canvas, adapter : adapter, device : device, context : context };
 }
 
-export function CreateBuffer(device, size, flags=GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST, data=null) {
+export function createBuffer(device, size, flags=GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST, data=null) {
   const buffer = device.createBuffer({
     size: size,
     usage: flags,

@@ -4,8 +4,10 @@ const mat4 = glMatrix.mat4;
 const vec3 = glMatrix.vec3;
 
 // Import other files
-import { CreateBuffer, InitWebGPU } from './helper.js';
-import { CreateDefaultLight, createAmbientLight, createDirectLight, loadglTF } from './model_data.js'
+import { createBuffer, InitWebGPU } from './helper.js';
+import { loadglTF } from './model_data.js'
+import { createAmbientLight, createDirectLight } from './lights.js'
+import { createCopy } from './post_processing.js';
 
 // Number clamp function
 const clamp = (num, min, max) => Math.min(Math.max(num, min), max);
@@ -79,6 +81,7 @@ export async function InitRender() {
 
   /***
    * Create first render pass
+   * Geometry pass
    ***/
   render_targets.push({});
 
@@ -107,7 +110,7 @@ export async function InitRender() {
     colorAttachments: [
       {view: render_targets[0].gbuffers[0].createView(), clearValue: {r: 0, g: 0, b: 0, a: 0}, loadOp: 'clear', storeOp: 'store'},
       {view: render_targets[0].gbuffers[1].createView(), clearValue: {r: 0, g: 0, b: 0, a: 0}, loadOp: 'clear', storeOp: 'store'},
-      {view: render_targets[0].gbuffers[2].createView(), clearValue: {r: 0, g: 0, b: 0, a: 0}, loadOp: 'clear', storeOp: 'store'},
+      {view: render_targets[0].gbuffers[2].createView(), clearValue: {r: 0, g: 0, b: 0, a: 0}, loadOp: 'clear', storeOp: 'store'}
     ],
     depthStencilAttachment: {
       view: (render_targets[0].depth_tex_view = render_targets[0].depth_tex.createView()),
@@ -125,6 +128,7 @@ export async function InitRender() {
 
   /***
    * Create second render pass
+   * Lighting pass
    ***/
   render_targets.push({});
 
@@ -133,12 +137,12 @@ export async function InitRender() {
       {binding: 0, visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT, buffer: {type: "uniform"}},
       {binding: 1, visibility: GPUShaderStage.FRAGMENT, texture: {viewDimension: '2d'}},
       {binding: 2, visibility: GPUShaderStage.FRAGMENT, texture: {viewDimension: '2d'}},
-      {binding: 3, visibility: GPUShaderStage.FRAGMENT, texture: {viewDimension: '2d'}},
+      {binding: 3, visibility: GPUShaderStage.FRAGMENT, texture: {viewDimension: '2d'}}
     ]
   })
 
   render_targets[1].scene_uniform_buffer_size = 4 * (3 + 1 + 3 + 1);
-  render_targets[1].scene_uniform_buffer = CreateBuffer(device, render_targets[1].scene_uniform_buffer_size, GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST);
+  render_targets[1].scene_uniform_buffer = createBuffer(device, render_targets[1].scene_uniform_buffer_size, GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST);
   render_targets[1].gbuffers_bind_group = device.createBindGroup({
     layout: render_targets[1].gbuffers_bind_group_layout,
     entries: [
@@ -153,9 +157,17 @@ export async function InitRender() {
     ]
   });
 
+  render_targets[1].gbuffers = [
+    device.createTexture({
+      size: [gpu.canvas.width, gpu.canvas.height, 1],
+      format: "rgba16float",
+      usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING,
+    })
+  ]
+
   render_targets[1].render_pass_desc = {
     colorAttachments: [
-      {clearValue: {r: 0, g: 0, b: 0, a: 1}, loadOp: 'clear', storeOp: 'store'},
+      {view: render_targets[1].gbuffers[0].createView({baseMipLevel: 0, mipLevelCount: 1}), clearValue: {r: 0, g: 0, b: 0, a: 0}, loadOp: 'clear', storeOp: 'store'},
     ]
   };
 
@@ -173,7 +185,45 @@ export async function InitRender() {
   let amb0 = createAmbientLight(device, render_targets[1].gbuffers_bind_group_layout);
   amb0.update(device, {color: [0.18, 0.18, 0.18, 1]});
 
-  render_targets[1].lights.push(dir0, dir1, dir2, amb0);
+  let dir3 = createDirectLight(device, render_targets[1].gbuffers_bind_group_layout);
+  dir3.update(device, {pos: [0, -1, 0], color: [1, 1, 1, 10]});
+
+  //render_targets[1].lights.push(dir0, dir1, dir2, amb0, dir3);
+  render_targets[1].lights.push(amb0);
+
+  /***
+   * Create third render pass
+   * Post processing pass
+   ***/
+  render_targets.push({});
+
+  render_targets[2].render_pass_desc = {
+    colorAttachments: [
+      {view: null, clearValue: {r: 0, g: 0, b: 0, a: 0}, loadOp: 'clear', storeOp: 'store'},
+    ]
+  };
+
+  render_targets[2].gbuffers_bind_group_layout = device.createBindGroupLayout({
+    entries: [
+      {binding: 0, visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT, buffer: {type: "uniform"}},
+      {binding: 1, visibility: GPUShaderStage.FRAGMENT, texture: {viewDimension: '2d'}},
+    ]
+  })
+
+  render_targets[2].gbuffers_bind_group = device.createBindGroup({
+    layout: render_targets[2].gbuffers_bind_group_layout,
+    entries: [
+      {binding: 0, resource: {
+        buffer: render_targets[1].scene_uniform_buffer,
+        offset: 0,
+        size: render_targets[1].scene_uniform_buffer_size
+      }},
+      {binding: 1, resource: render_targets[1].gbuffers[0].createView()},
+    ]
+  })
+
+  render_targets[2].modes = []
+  render_targets[2].modes.push(createCopy(device, render_targets[2].gbuffers_bind_group_layout));
 
   /***
    * Add input callbacks
@@ -247,9 +297,9 @@ function Responce() {
   let tmp = new Float32Array([].concat(cam_pos, gpu.canvas.width, eye_offset_dir.map(val => -val), gpu.canvas.height));
   gpu.device.queue.writeBuffer(render_targets[1].scene_uniform_buffer, 0, tmp, 0, 3 + 1 + 3 + 1);
 
-  render_targets[1].lights[0].update(gpu.device, {pos: [Math.cos(Time * 1.0 + 0.47), 1.0, Math.sin(Time * 0.75 + 0.30)]});
+  /*render_targets[1].lights[0].update(gpu.device, {pos: [Math.cos(Time * 1.0 + 0.47), 1.0, Math.sin(Time * 0.75 + 0.30)]});
   render_targets[1].lights[1].update(gpu.device, {pos: [Math.cos(Time * 1.3 + 0.8), 1.0, Math.sin(Time * 0.47 + 0.47)]});
-  render_targets[1].lights[2].update(gpu.device, {pos: [Math.cos(Time * 0.666 + 1.8), 1.0, Math.sin(Time * 1.8 + 0.8)]});
+  render_targets[1].lights[2].update(gpu.device, {pos: [Math.cos(Time * 0.666 + 1.8), 1.0, Math.sin(Time * 1.8 + 0.8)]});*/
 }
 
 function Render() {
@@ -264,10 +314,18 @@ function Render() {
   }
 
   {
-    render_targets[1].render_pass_desc.colorAttachments[0].view = gpu.context.getCurrentTexture().createView();
     let renderPass = commandEncoder.beginRenderPass(render_targets[1].render_pass_desc);
 
     render_targets[1].lights.forEach(light => light.draw(render_targets[1].gbuffers_bind_group, renderPass));
+
+    renderPass.end();
+  }
+
+  {
+    render_targets[2].render_pass_desc.colorAttachments[0].view = gpu.context.getCurrentTexture().createView();
+    let renderPass = commandEncoder.beginRenderPass(render_targets[2].render_pass_desc);
+
+    render_targets[2].modes[0].run(render_targets[2].gbuffers_bind_group, renderPass);
 
     renderPass.end();
   }

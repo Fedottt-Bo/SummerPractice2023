@@ -1,4 +1,4 @@
-import { CreateBuffer, CreateTextureFromImg, surface_format, fetchBuffer, loadImage, EmptyTexture } from './helper.js';
+import { createBuffer, CreateTextureFromImg, fetchBuffer, loadImage, EmptyTexture } from './helper.js';
 import { zipObject, keys as objectKeys, values as objectValues } from 'lodash';
 import { vec2, vec3, mat4 } from 'gl-matrix';
 
@@ -15,7 +15,7 @@ const shaders = {
   VPMatr : mat4x4<f32>,
   ModelMatr : mat4x4<f32>,
   InvVPMatr : mat4x4<f32>,
-  InvModelMatr : mat4x4<f32>,
+  InvModelMatr : mat4x4<f32>
 };
 @group(0) @binding(0) var<uniform> uniforms : Uniforms;
 
@@ -37,20 +37,20 @@ override is_met_rough_tex : bool = false;
 struct vs_in {
   @location(0) pos : vec3<f32>,
   @location(1) tex0 : vec2<f32>,
-  @location(2) normal : vec3<f32>,
+  @location(2) normal : vec3<f32>
 }
 
 struct vs_to_fs {
   @builtin(position) pos : vec4<f32>,
   @location(0) base_pos : vec3<f32>,
   @location(1) tex0 : vec2<f32>,
-  @location(2) normal : vec3<f32>,
+  @location(2) normal : vec3<f32>
 };
 
 struct fs_out {
   @location(0) color_shade : vec4<f32>,
   @location(1) pos_met : vec4<f32>,
-  @location(2) norm_rough : vec4<f32>,
+  @location(2) norm_rough : vec4<f32>
 }
 
 @vertex
@@ -91,7 +91,7 @@ fn fs_main(input : vs_to_fs) -> fs_out
   VPMatr : mat4x4<f32>,
   ModelMatr : mat4x4<f32>,
   InvVPMatr : mat4x4<f32>,
-  InvModelMatr : mat4x4<f32>,
+  InvModelMatr : mat4x4<f32>
 };
 @group(0) @binding(0) var<uniform> uniforms : Uniforms;
 
@@ -148,7 +148,7 @@ fn vs_main(input : vs_in) -> vs_to_fs {
   output.tex0 = input.tex0;
 
   var normal = normalize(cross(input.tangent, input.bitangent) * input.facing);
-  output.normal = normalize((uniforms.InvModelMatr * vec4<f32>(normal, 0.0)).xyz);  
+  output.normal = normalize((uniforms.InvModelMatr * vec4<f32>(normal, 0.0)).xyz);
 
   return output;
 }
@@ -355,7 +355,7 @@ export function loadglTF(device, url) {
         data = model.buffers[view.buffer].subarray(offset, offset + size);
       }      
 
-      let buffer = CreateBuffer(device, size, flags, data);
+      let buffer = createBuffer(device, size, flags, data);
       buffer.count = accessor.count;
       buffer.elm_size = elm_size;
       buffer.type = type;
@@ -433,7 +433,7 @@ export function loadglTF(device, url) {
           targets: [
             {format: 'rgba8unorm-srgb'},
             {format: 'rgba16float'},
-            {format: 'rgba16float'},
+            {format: 'rgba16float'}
           ]
         },
         primitive: {
@@ -608,7 +608,7 @@ export function loadglTF(device, url) {
           castArray(prim.vert_buffers.pos.data, Float32Array));
       }
 
-      prim.vert_buffers.norm = CreateBuffer(device, prim.vert_buffers.norm.length * 4, GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST, prim.vert_buffers.norm);
+      prim.vert_buffers.norm = createBuffer(device, prim.vert_buffers.norm.length * 4, GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST, prim.vert_buffers.norm);
       /*delete prim.vert_buffers.pos.data;
       delete prim.vert_buffers.tex0.data;*/
 
@@ -632,7 +632,9 @@ export function loadglTF(device, url) {
         mat4.transpose(inv_vp, inv_vp); mat4.transpose(inv_trans, inv_trans);
 
         let tmp = new Float32Array(this.uniform_buffer_size / 4);
-        tmp.set(vp, 0); tmp.set(trans, 16); tmp.set(inv_vp, 32); tmp.set(inv_trans, 48);
+        tmp.set(vp, 0); tmp.set(trans, 16);
+        tmp.set(inv_vp, 32); tmp.set(inv_trans, 48);
+
         device.queue.writeBuffer(this.uniform_buffer, 0, tmp);
 
         rnd_pass.setPipeline(this.pipeline);
@@ -750,7 +752,7 @@ export function loadglTF(device, url) {
           if (node.rotation !== undefined) {
             let tmp = mat4.create();
             mat4.fromQuat(tmp, node.rotation);
-            mat4.multiply(new_node.transform, tmp, new_node.transform);
+            mat4.multiply(new_node.transform, new_node.transform, tmp);
           }
           if (node.scale !== undefined) mat4.scale(new_node.transform, new_node.transform, node.scale);
         }
@@ -760,7 +762,7 @@ export function loadglTF(device, url) {
 
         new_node.draw = function (vp, trans, rnd_pass) {
           let new_trans = mat4.create();
-          mat4.multiply(new_trans, this.transform, trans);
+          mat4.multiply(new_trans, trans, this.transform);
 
           if (this.mesh !== undefined) this.mesh.draw(vp, new_trans, rnd_pass);
           if (this.children !== undefined) this.children.forEach(val => val.draw(vp, new_trans, rnd_pass));
@@ -787,261 +789,4 @@ export function loadglTF(device, url) {
       console.error(error);
       return {}; 
     });
-}
-
-const light_shader_default =
-`const PI = 3.141592653589793;
-
-fn BRDF_PartialGeometry(cosThetaN : f32, alpha : f32) -> f32 {
-  var cosTheta_sqr = clamp(cosThetaN * cosThetaN, 0.0, 1.0);
-  var tan2 = (1 - cosTheta_sqr) / cosTheta_sqr;
-  var GP = 2 / (1 + sqrt(1 + alpha * alpha * tan2));
-
-  return GP;
-}
-
-fn BRDF_Distribution(cosThetaNH : f32, alpha : f32) -> f32 {
-  var alpha2 = alpha * alpha;
-  var NH_sqr = clamp(cosThetaNH * cosThetaNH, 0.0, 1.0);
-  var den = NH_sqr * alpha2 + (1.0 - NH_sqr);
-  
-  return alpha2 / (PI * den * den);
-}
-
-fn BRDF_FresnelSchlick(F0 : vec3<f32>, cosTheta : f32) -> vec3<f32> {
-  return F0 + (1.0 - F0) * pow(1.0 - clamp(cosTheta, 0.0, 1.0), 5.0);
-}
-
-fn BRDF_CookTorrance(norm : vec3<f32>, light_dir : vec3<f32>, view : vec3<f32>,
-                     albedo : vec3<f32>, rough : f32, met : f32) ->vec3<f32> {
-  var n = normalize(norm);
-  var v = normalize(view);
-  var l = normalize(light_dir);
-
-  // Evaluate frenzel coefficient
-  const dielectricSpecular = vec3<f32>(0.04, 0.04, 0.04);
-  var f0 = mix(dielectricSpecular, albedo, met);
-
-  var h = normalize(v + l);
-
-  //precompute dots
-  var NL = dot(n, l);
-  if (NL <= 0.0) { return vec3<f32>(0.0, 0.0, 0.0); }
-
-  var NV = dot(n, v);
-  if (NV <= 0.0) { return vec3<f32>(0.0, 0.0, 0.0); }
-
-  var NH = dot(n, h);
-  var HV = dot(h, v);
-  
-  //precompute roughness square
-  var roug_sqr = rough * rough;
-  
-  //calc coefficients
-  var G = BRDF_PartialGeometry(NV, roug_sqr) * BRDF_PartialGeometry(NL, roug_sqr);
-  var D = BRDF_Distribution(NH, roug_sqr);
-  var F = BRDF_FresnelSchlick(f0, HV);
-
-  //mix
-  var specK = G * D * F * 0.25 / (NV + 0.001);    
-  var diffK = clamp(vec3<f32>(1.0, 1.0, 1.0) - F, vec3<f32>(0.0, 0.0, 0.0), vec3<f32>(1.0, 1.0, 1.0));
-
-  return max(vec3<f32>(0.0, 0.0, 0.0), albedo * diffK * NL / PI + specK);
-}`;
-
-export function createDirectLight(device, main_group_layout) {
-  let uniform_bind_group_layout = device.createBindGroupLayout({
-    entries: [{
-      binding: 0,
-      visibility: GPUShaderStage.FRAGMENT,
-      buffer: {type: "uniform"},
-    }]
-  });
-
-  let pipeline_desc = {
-    layout: device.createPipelineLayout({bindGroupLayouts: [main_group_layout, uniform_bind_group_layout]}),
-    vertex: {
-      module: device.createShaderModule({ code:
-`@vertex
-fn main(@builtin(vertex_index) VertexIndex: u32) -> @builtin(position) vec4<f32> {
-  var pos = array<vec2<f32>, 6>(vec2<f32>(-1.0, -1.0), vec2<f32>(-1.0, 1.0), vec2<f32>(1.0, -1.0), vec2<f32>(1.0, -1.0), vec2<f32>(-1.0, 1.0), vec2<f32>(1.0, 1.0));
-  return vec4<f32>(pos[VertexIndex], 0.0, 1.0);
-}`      }),
-      entryPoint: "main"
-    },
-    fragment: {
-      module: device.createShaderModule({ code:
-`struct scene_data {
-  pos : vec3<f32>,
-  width : f32,
-  dir : vec3<f32>,
-  height : f32
-};
-@group(0) @binding(0) var<uniform> sceneData : scene_data;
-
-@group(0) @binding(1) var color_shade_tex : texture_2d<f32>;
-@group(0) @binding(2) var pos_met_tex : texture_2d<f32>;
-@group(0) @binding(3) var norm_rough_tex : texture_2d<f32>;
-
-${light_shader_default}
-
-struct light_data {
-  color : vec4<f32>,
-  dir : vec3<f32>,
-};
-@group(1) @binding(0) var<uniform> lightData : light_data;
-
-@fragment
-fn main(@builtin(position) coord : vec4<f32>) -> @location(0) vec4<f32> {
-  var icoord = vec2<i32>(floor(coord.xy));
-  var color_shade : vec4<f32> = textureLoad(color_shade_tex, icoord, 0);
-  var color = color_shade.rgb;
-  var shade = color_shade.w;
-  var pos_met : vec4<f32> = textureLoad(pos_met_tex, icoord, 0);
-  var pos = pos_met.xyz;
-  var met = pos_met.w;
-  var norm_rough : vec4<f32> = textureLoad(norm_rough_tex, icoord, 0);
-  var norm = norm_rough.xyz;
-  var rough = norm_rough.w;
-  
-  //return vec4<f32>((color * max(0.13, dot(norm, lightData.dir))) * lightData.color.rgb, 1.0) * lightData.color.w;
-  var shade_color = BRDF_CookTorrance(norm, lightData.dir, sceneData.pos - pos, color, rough, met);
-  var res_color = vec4<f32>(shade_color * lightData.color.rgb * lightData.color.w, lightData.color.w);
-
-  return res_color;
-}`      }),
-      entryPoint: "main",
-      targets: [{
-        format: surface_format,
-        blend: {
-          color: {dstFactor: "one", operation: "add", srcFactor: "one"},
-          alpha: {dstFactor: "one", operation: "add", srcFactor: "one"}
-        }
-      }]
-    },
-    primitive: {
-      topology: "triangle-list",
-      cullMode: 'none'
-    },
-  };
-
-  let uniform_buffer_size = 32;
-  let uniform_buffer = CreateBuffer(device, uniform_buffer_size, GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST);
-  let uniform_bind_group = device.createBindGroup({
-    layout: uniform_bind_group_layout,
-    entries: [{
-      binding: 0,
-      resource: {
-        buffer: uniform_buffer,
-        offset: 0,
-        size: uniform_buffer_size,
-      }
-    }]
-  });
-
-  return {
-    pipeline: device.createRenderPipeline(pipeline_desc),
-    uniform_buffer, uniform_bind_group, uniform_buffer_size,
-    
-    draw: function (bind_group, rnd_pass) {
-      rnd_pass.setPipeline(this.pipeline);
-      rnd_pass.setBindGroup(0, bind_group);
-      rnd_pass.setBindGroup(1, this.uniform_bind_group);
-
-      rnd_pass.draw(6, 1, 0, 0);
-    },
-    update: function (device, desc) {
-      if (desc.color !== undefined) device.queue.writeBuffer(this.uniform_buffer, 0, new Float32Array(desc.color), 0, 4);
-      if (desc.pos !== undefined) {
-        let tmp = vec3.create();
-        vec3.normalize(tmp, new Float32Array(desc.pos));                            
-
-        device.queue.writeBuffer(this.uniform_buffer, 4 * 4, tmp, 0, 3);
-      }
-    }
-  }
-}
-
-export function createAmbientLight(device, main_group_layout) {
-  let uniform_bind_group_layout = device.createBindGroupLayout({
-    entries: [{
-      binding: 0,
-      visibility: GPUShaderStage.FRAGMENT,
-      buffer: {type: "uniform"},
-    }]
-  });
-
-  let pipeline_desc = {
-    layout: device.createPipelineLayout({bindGroupLayouts: [main_group_layout, uniform_bind_group_layout]}),
-    vertex: {
-      module: device.createShaderModule({ code:
-`@vertex
-fn main(@builtin(vertex_index) VertexIndex: u32) -> @builtin(position) vec4<f32> {
-  var pos = array<vec2<f32>, 6>(vec2<f32>(-1.0, -1.0), vec2<f32>(-1.0, 1.0), vec2<f32>(1.0, -1.0), vec2<f32>(1.0, -1.0), vec2<f32>(-1.0, 1.0), vec2<f32>(1.0, 1.0));
-  return vec4<f32>(pos[VertexIndex], 0.0, 1.0);
-}`      }),
-      entryPoint: "main"
-    },
-    fragment: {
-      module: device.createShaderModule({ code:
-`@group(0) @binding(1) var color_shade_tex : texture_2d<f32>;
-
-struct light_data {
-  color : vec4<f32>
-};
-@group(1) @binding(0) var<uniform> lightData : light_data;
-
-@fragment
-fn main(@builtin(position) coord : vec4<f32>) -> @location(0) vec4<f32> {
-  var icoord = vec2<i32>(floor(coord.xy));
-  var color_shade : vec4<f32> = textureLoad(color_shade_tex, icoord, 0);
-  var color = color_shade.rgb;
-  var shade = color_shade.w;
-  
-  return vec4<f32>(color * lightData.color.rgb, 1.0) * lightData.color.w;
-}`      }),
-      entryPoint: "main",
-      targets: [{
-        format: surface_format,
-        blend: {
-          color: {dstFactor: "one", operation: "add", srcFactor: "one"},
-          alpha: {dstFactor: "one", operation: "add", srcFactor: "one"}
-        }
-      }]
-    },
-    primitive: {
-      topology: "triangle-list",
-      cullMode: 'none'
-    },
-  };
-
-  let uniform_buffer_size = 16;
-  let uniform_buffer = CreateBuffer(device, uniform_buffer_size, GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST);
-  let uniform_bind_group = device.createBindGroup({
-    layout: uniform_bind_group_layout,
-    entries: [{
-      binding: 0,
-      resource: {
-        buffer: uniform_buffer,
-        offset: 0,
-        size: uniform_buffer_size,
-      }
-    }]
-  });
-
-  return {
-    pipeline: device.createRenderPipeline(pipeline_desc),
-    uniform_buffer, uniform_bind_group, uniform_buffer_size,
-    
-    draw: function (bind_group, rnd_pass) {
-      rnd_pass.setPipeline(this.pipeline);
-      rnd_pass.setBindGroup(0, bind_group);
-      rnd_pass.setBindGroup(1, this.uniform_bind_group);
-
-      rnd_pass.draw(6, 1, 0, 0);
-    },
-    update: function (device, desc) {
-      if (desc.color !== undefined) device.queue.writeBuffer(this.uniform_buffer, 0, new Float32Array(desc.color), 0, 4);
-    }
-  }
 }
