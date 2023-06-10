@@ -58,7 +58,7 @@ export function createBuffer(device, size, flags=GPUBufferUsage.UNIFORM | GPUBuf
   return buffer;
 }
 
-export function CreateTextureFromBitmap(device, img) {
+export function createTextureFromBitmap(device, img) {
   const textureDescriptor = {
     size: { width: img.width, height: img.height },
     format: 'rgba8unorm',
@@ -70,8 +70,32 @@ export function CreateTextureFromBitmap(device, img) {
   return texture;
 }
 
-export async function CreateTextureFromImg(device, img) {
-  return CreateTextureFromBitmap(device, await createImageBitmap(img));
+export async function createTextureFromImg(device, img) {
+  return createTextureFromBitmap(device, await createImageBitmap(img));
+}
+
+export function createCubeTextureFromBitmaps(device, images) {
+  if (images.length !== 6) throw("invalid images amount");
+
+  const w = images[0].width, h = images[0].height;
+  if (w === undefined || h === undefined) throw("Invalid size");
+  for (let i = 1; i < 6; i++) if (images[i].width !== w || images[i].height !== h) throw("Different size of images is not allowed");
+
+  const textureDescriptor = {
+    size: {width: w, height: h, depthOrArrayLayers: 6},
+    format: 'rgba8unorm',
+    usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST
+  };
+  const texture = device.createTexture(textureDescriptor);
+
+  for (let i = 0; i < 6; i++)
+    device.queue.copyExternalImageToTexture({source: images[i]}, {texture: texture, origin: [0, 0, i]}, {width: w, height: h, depthOrArrayLayers: 1});
+
+  return texture;
+}
+
+export async function createCubeTextureFromImages(device, images) {
+  return createCubeTextureFromBitmaps(device, await Promise.all(images.map(image => createImageBitmap(image))));
 }
 
 let EmptyTextureData = null;

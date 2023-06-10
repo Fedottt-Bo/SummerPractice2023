@@ -120,7 +120,7 @@ fn main(@builtin(position) coord : vec4<f32>) -> @location(0) vec4<f32> {
   
   //return vec4<f32>((color * max(0.13, dot(norm, lightData.dir))) * lightData.color.rgb, 1.0) * lightData.color.w;
   var shade_color = BRDF_CookTorrance(norm, lightData.dir, sceneData.pos - pos, color, rough, met);
-  var res_color = vec4<f32>(shade_color * lightData.color.rgb * lightData.color.w, lightData.color.w);
+  var res_color = vec4<f32>(shade_color * lightData.color.rgb * lightData.color.w, lightData.color.w) * shade;
 
   return res_color;
 }`      }),
