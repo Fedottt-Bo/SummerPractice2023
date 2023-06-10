@@ -1,4 +1,4 @@
-import { createBuffer, CreateTextureFromImg, fetchBuffer, loadImage, EmptyTexture } from './helper.js';
+import { createBuffer, createTextureFromImg, createCubeTextureFromImages, fetchBuffer, loadImage, EmptyTexture } from './helper.js';
 import { zipObject, keys as objectKeys, values as objectValues } from 'lodash';
 import { vec2, vec3, mat4 } from 'gl-matrix';
 
@@ -691,7 +691,7 @@ export function loadglTF(device, url) {
           throw ("Incorrect image description");
         }
   
-        return loadImage(uri).then(val => CreateTextureFromImg(device, val));
+        return loadImage(uri).then(image => createTextureFromImg(device, image));
       }));
     })
     .then(images => {
@@ -783,6 +783,125 @@ export function loadglTF(device, url) {
 
       // Return complete model
       return model;
+    })
+    // Validation for returning empty object when error
+    .catch(error => {
+      console.error(error);
+      return {}; 
+    });
+}
+
+export function loadSkybox(device, url) {
+  return fetch(url)
+    .then(data => data.json())
+    .then(data => {
+      assert(data.length == 6);
+      return Promise.all(data.map(url => loadImage(url)));
+    })
+    .then(images => createCubeTextureFromImages(device, images))
+    .then(texture => {
+      let bind_group_layout = device.createBindGroupLayout({
+        entries: [
+          {binding: 0, visibility: GPUShaderStage.VERTEX, buffer: {type: "uniform"}},
+          {binding: 1, visibility: GPUShaderStage.FRAGMENT, texture: {viewDimension: 'cube'}},
+          {binding: 2, visibility: GPUShaderStage.FRAGMENT, sampler: {type: "filtering"}}
+        ]
+      })
+
+      let uniform_buffer_size = (4 * 16) * 1;
+      let uniform_buffer = device.createBuffer({
+        size: uniform_buffer_size,
+        usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
+      });
+
+      let pipeline = device.createRenderPipeline({
+        layout: device.createPipelineLayout({bindGroupLayouts: [bind_group_layout]}),
+        vertex: {
+          module: device.createShaderModule({ code:
+`struct Uniforms {
+  InvVPMatr : mat4x4<f32>
+};
+@group(0) @binding(0) var<uniform> uniforms : Uniforms;
+
+struct out {
+  @builtin(position) pos : vec4<f32>,
+  @location(0) dir : vec3<f32>
+}
+
+@vertex
+fn main(@builtin(vertex_index) VertexIndex: u32) -> out {
+  var pos = array<vec2<f32>, 4>(vec2<f32>(-1.0, -1.0), vec2<f32>(-1.0, 1.0), vec2<f32>(1.0, -1.0), vec2<f32>(1.0, 1.0));
+
+  var output : out;
+  output.pos = vec4<f32>(pos[VertexIndex], 0.9999847412109375, 1.0);
+  var corner_near = uniforms.InvVPMatr * vec4<f32>(pos[VertexIndex], 0.0, 1.0);
+  var corner_far = uniforms.InvVPMatr * vec4<f32>(pos[VertexIndex], 1.0, 1.0);
+  output.dir = normalize(corner_far.xyz / corner_far.w - corner_near.xyz / corner_near.w);
+return output;
+}`            }),
+          entryPoint: "main"
+        },
+        fragment: {
+          module: device.createShaderModule({ code:
+`@group(0) @binding(1) var sky_tex : texture_cube<f32>;
+@group(0) @binding(2) var sky_sampler : sampler;
+
+struct in {
+  @builtin(position) pos : vec4<f32>,
+  @location(0) dir : vec3<f32>
+}
+
+@fragment
+fn main(input : in) -> @location(0) vec4<f32> {
+  var color = textureSample(sky_tex, sky_sampler, input.dir).rgb;
+
+  return vec4<f32>(color, 0.0);
+  //return vec4<f32>(normalize(input.dir) * 0.5 + 0.5, 0.0);
+}`            }),
+          entryPoint: "main",
+          targets: [
+            {format: 'rgba8unorm-srgb'},
+            {format: 'rgba16float', writeMask: 0},
+            {format: 'rgba16float', writeMask: 0}
+          ]
+        },
+        primitive: {
+          topology: "triangle-strip",
+          cullMode: 'none'
+        },
+        depthStencil: {
+          format: "depth24plus",
+          depthWriteEnabled: false,
+          depthCompare: "less"
+        },
+      })
+
+      let bind_group = device.createBindGroup({
+        layout: bind_group_layout,
+        entries: [
+          {binding: 0, resource: {buffer: uniform_buffer, offset: 0, size: uniform_buffer_size}},
+          {binding: 1, resource: texture.createView({dimension: "cube", arrayLayerCount: 6, baseArrayLayer: 0})},
+          {binding: 2, resource: device.createSampler({
+            addressModeU: "mirror-repeat", addressModeV: "mirror-repeat",
+            magFilter: "linear", minFilter: "linear", mipmapFilter: "linear"
+          })}
+        ]
+      })
+      
+      return {
+        pipeline, bind_group,
+        uniform_buffer_size, uniform_buffer,
+        draw: function (vp, trans, rnd_pass) {
+          let inv_vp = mat4.create();
+          mat4.invert(inv_vp, vp);
+          device.queue.writeBuffer(this.uniform_buffer, 0, inv_vp);
+
+          rnd_pass.setPipeline(this.pipeline);
+          rnd_pass.setBindGroup(0, this.bind_group);
+
+          rnd_pass.draw(4, 1, 0, 0);
+        }
+      }
     })
     // Validation for returning empty object when error
     .catch(error => {

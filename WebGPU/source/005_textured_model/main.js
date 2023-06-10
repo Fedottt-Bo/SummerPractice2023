@@ -5,7 +5,7 @@ const vec3 = glMatrix.vec3;
 
 // Import other files
 import { createBuffer, InitWebGPU } from './helper.js';
-import { loadglTF } from './model_data.js'
+import { loadglTF, loadSkybox } from './model_data.js'
 import { createAmbientLight, createDirectLight } from './lights.js'
 import { createCopy } from './post_processing.js';
 
@@ -27,11 +27,7 @@ let models_names = [
 ]
 
 export function selectModel(ind) {
-  if (models_list[ind] === undefined) {
-    render_targets[0].models = [];
-  } else {
-    render_targets[0].models = [models_list[ind]];
-  }
+  render_targets[0].models[0] = models_list[ind]
 }
 
 async function loadModel(ind) {
@@ -124,7 +120,7 @@ export async function InitRender() {
   render_targets[0].vp = mat4.create();
 
   //render_targets[0].models = [await loadglTF(device, './Duck.gltf')];
-  render_targets[0].models = [];
+  render_targets[0].models = [undefined, await loadSkybox(device, "SkyStorm.json")];
 
   /***
    * Create second render pass
@@ -304,7 +300,7 @@ function Render() {
   {
     let renderPass = commandEncoder.beginRenderPass(render_targets[0].render_pass_desc);
 
-    render_targets[0].models.forEach(model => model.draw(render_targets[0].vp, mat4.create(), renderPass));
+    render_targets[0].models.forEach(model => {if (model !== undefined) model.draw(render_targets[0].vp, mat4.create(), renderPass)});
 
     renderPass.end();
   }
