@@ -48,7 +48,7 @@ export function createBuffer(device, size, flags=GPUBufferUsage.UNIFORM | GPUBuf
     size: size,
     usage: flags,
     mappedAtCreation: data !== null
-  });                 
+  });
 
   if (data !== null) {
     new data.constructor(buffer.getMappedRange()).set(data);
