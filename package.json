@@ -1,5 +1,5 @@
 {
-  "name": "Textured model sample",
+  "name": "TexturedModelSample",
   "sideEffects": false,
   "dependencies": {
     "buffer": "^6.0.3",
