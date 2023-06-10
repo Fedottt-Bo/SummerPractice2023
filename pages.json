@@ -32,7 +32,8 @@
         {"url": "samples/002_vert_buffer.html", "name": "Vertex Buffer"},
         {"url": "samples/003_ind_buffer.html", "name": "Vertex+Index Buffers"},
         {"url": "samples/004_3d_cube.html", "name": "3D Cube"},
-        {"url": "samples/005_textured_model.html", "name": "Textured model"}
+        {"url": "samples/005_textured_model.html", "name": "Textured model"},
+        {"url": "samples/006_fractal_platon_figure.html", "name": "Platon bodies"}
       ],
       "resources": [
         {"url": "samples/", "uri": "resources/"}

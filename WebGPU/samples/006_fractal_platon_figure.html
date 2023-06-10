@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+
+<html>
+
+<head>
+  <title>Web GPU try</title>
+
+  <style>
+    .Input {
+      background-color: cadetblue;
+
+      border: 13% 13%;
+      border-radius: 1vh;
+      border-color: black;
+      border-style: solid;
+      
+      width: max-content;
+      height: max-content;
+    }
+
+    .Input input {
+      border-radius: 1vh;
+    }
+
+    .Input select {
+      margin: 1vh 1vw;
+      background-color: gainsboro;
+      color: darkblue;
+    }
+  </style>
+  <link rel="stylesheet" href="base_style.css">
+
+  <script type="text/javascript" src="006_fractal_platon_figure.js"></script>
+</head>
+
+<body onload="bundle.start()">
+  <canvas id="canvas-webgpu" style="border: none;" width="800" height="800"></canvas><br>
+
+  <div class="Input">
+    <select id="models_list" onchange="bundle.selectModel(this.options[this.selectedIndex].value);">
+      <option value="-1">--</option>
+    </select>
+  </div>
+
+  <br><a class="ReturnButton" href="../">Back</a>
+  <a href="https://www.school30.spb.ru/cgsg/" class="CGSGLogo"><img src="/cgsg.png"/></a>
+</body>
