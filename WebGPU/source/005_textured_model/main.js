@@ -7,7 +7,7 @@ const vec3 = glMatrix.vec3;
 import { createBuffer, InitWebGPU } from './helper.js';
 import { loadglTF, loadSkybox } from './model_data.js'
 import { createAmbientLight, createDirectLight } from './lights.js'
-import { createCopy } from './post_processing.js';
+import { createCopy, createToneMapping } from './post_processing.js';
 
 // Number clamp function
 const clamp = (num, min, max) => Math.min(Math.max(num, min), max);
@@ -169,19 +169,22 @@ export async function InitRender() {
 
   render_targets[1].lights = []
 
-  let dir0 = createDirectLight(device, render_targets[1].gbuffers_bind_group_layout);
+  /*let dir0 = createDirectLight(device, render_targets[1].gbuffers_bind_group_layout);
   dir0.update(device, {pos: [1.0, 1.0, 1.0], color: [1.3, 0.13, 0.13, 1]});
 
   let dir1 = createDirectLight(device, render_targets[1].gbuffers_bind_group_layout);
   dir1.update(device, {pos: [1.0, 1.0, -1.0], color: [0.13, 1.3, 0.13, 1]});
 
   let dir2 = createDirectLight(device, render_targets[1].gbuffers_bind_group_layout);
-  dir2.update(device, {pos: [-1.0, 1.0, 0], color: [0.13, 0.13, 1.3, 1]});
+  dir2.update(device, {pos: [-1.0, 1.0, 0], color: [0.13, 0.13, 1.3, 1]});*/
 
   let amb0 = createAmbientLight(device, render_targets[1].gbuffers_bind_group_layout);
   amb0.update(device, {color: [0.18, 0.18, 0.18, 1]});
 
-  render_targets[1].lights.push(dir0, dir1, dir2, amb0);
+  let dir_sun = createDirectLight(device, render_targets[1].gbuffers_bind_group_layout);
+  dir_sun.update(device, {pos: [-0.875, 1.0, 0.75], color: [1.0, 1.0, 0.8, 1.8]});
+
+  render_targets[1].lights.push(amb0, dir_sun);
 
   /***
    * Create third render pass
@@ -216,6 +219,7 @@ export async function InitRender() {
 
   render_targets[2].modes = []
   render_targets[2].modes.push(createCopy(device, render_targets[2].gbuffers_bind_group_layout));
+  render_targets[2].modes.push(createToneMapping(device, render_targets[2].gbuffers_bind_group_layout));
 
   /***
    * Add input callbacks
@@ -289,9 +293,9 @@ function Responce() {
   let tmp = new Float32Array([].concat(cam_pos, gpu.canvas.width, eye_offset_dir.map(val => -val), gpu.canvas.height));
   gpu.device.queue.writeBuffer(render_targets[1].scene_uniform_buffer, 0, tmp, 0, 3 + 1 + 3 + 1);
 
-  render_targets[1].lights[0].update(gpu.device, {pos: [Math.cos(Time * 1.0 + 0.47), 1.0, Math.sin(Time * 0.75 + 0.30)]});
+  /*render_targets[1].lights[0].update(gpu.device, {pos: [Math.cos(Time * 1.0 + 0.47), 1.0, Math.sin(Time * 0.75 + 0.30)]});
   render_targets[1].lights[1].update(gpu.device, {pos: [Math.cos(Time * 1.3 + 0.8), 1.0, Math.sin(Time * 0.47 + 0.47)]});
-  render_targets[1].lights[2].update(gpu.device, {pos: [Math.cos(Time * 0.666 + 1.8), 1.0, Math.sin(Time * 1.8 + 0.8)]});
+  render_targets[1].lights[2].update(gpu.device, {pos: [Math.cos(Time * 0.666 + 1.8), 1.0, Math.sin(Time * 1.8 + 0.8)]});*/
 }
 
 function Render() {

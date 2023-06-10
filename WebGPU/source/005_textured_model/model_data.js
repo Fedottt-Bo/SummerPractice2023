@@ -854,6 +854,9 @@ struct in {
 @fragment
 fn main(input : in) -> @location(0) vec4<f32> {
   var color = textureSample(sky_tex, sky_sampler, input.dir).rgb;
+  
+  var luma = 0.2126 * color.r + 0.7152 * color.g + 0.0722 * color.b;
+  //color *= pow(luma, 0.30);
 
   return vec4<f32>(color, 0.0);
   //return vec4<f32>(normalize(input.dir) * 0.5 + 0.5, 0.0);
