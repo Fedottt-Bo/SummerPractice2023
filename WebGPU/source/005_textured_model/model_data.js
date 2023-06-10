@@ -752,7 +752,7 @@ export function loadglTF(device, url) {
           if (node.rotation !== undefined) {
             let tmp = mat4.create();
             mat4.fromQuat(tmp, node.rotation);
-            mat4.multiply(new_node.transform, new_node.transform, tmp);
+            mat4.multiply(new_node.transform, tmp, new_node.transform);
           }
           if (node.scale !== undefined) mat4.scale(new_node.transform, new_node.transform, node.scale);
         }
@@ -762,7 +762,7 @@ export function loadglTF(device, url) {
 
         new_node.draw = function (vp, trans, rnd_pass) {
           let new_trans = mat4.create();
-          mat4.multiply(new_trans, trans, this.transform);
+          mat4.multiply(new_trans, this.transform, trans);
 
           if (this.mesh !== undefined) this.mesh.draw(vp, new_trans, rnd_pass);
           if (this.children !== undefined) this.children.forEach(val => val.draw(vp, new_trans, rnd_pass));
