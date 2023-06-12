@@ -42,7 +42,8 @@ if (server === undefined) {
 
 // Server state monitor request
 app.get('/state', function (req, res) {
-  res.send('ok');
+  res.sendStatus(200);
+  res.end();
 })
 
 // All requests handler
