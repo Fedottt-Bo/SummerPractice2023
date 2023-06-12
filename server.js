@@ -40,6 +40,11 @@ if (server === undefined) {
   server = http.createServer({}, app);
 }
 
+// Server state monitor request
+app.get('/state', function (req, res) {
+  res.send('ok');
+})
+
 // All requests handler
 app.all('*', function (req, res, next) {
   req.on('close', () => {
