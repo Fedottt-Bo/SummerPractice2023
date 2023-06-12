@@ -49,7 +49,7 @@ app.get('/state', function (req, res) {
 // All requests handler
 app.all('*', function (req, res, next) {
   req.on('close', () => {
-    console.log(`Request from ip: '${req.ip}' with method: '${req.method}' to URL: '${req.path}' ${(res.statusCode === 200) ? 'succeeded' : `failed (code: ${res.statusCode})`}`)
+    console.log(`Request from ip: '${req.ip}' with method: '${req.method}' to URL: '${req.path}' ${(/[23]../g.test(res.statusCode)) ? 'succeeded' : `failed (code: ${res.statusCode})`}`)
   });
 
   next();
